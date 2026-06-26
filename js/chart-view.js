@@ -263,9 +263,10 @@ const ChartView = {
   renderClimbProfile(el, climb) {
     if (!climb.climbPts || !climb.gradProfile) { el.innerHTML = ''; return; }
 
-    // climbfinder-style: the elevation area itself is filled with per-segment
-    // gradient colours, and each band carries a large, readable % label.
-    const W = 320, H = 150;
+    // cyclingcols-style: fixed per-kilometre bars, each coloured by that km's
+    // AVERAGE gradient with one clean number, plus the elevation silhouette and
+    // a km distance axis. Averaging per km removes the noisy "barcode" look.
+    const W = 320, H = 150, AX = 16;     // AX = bottom distance-axis band
     const cpts = climb.climbPts;
     const minE = Math.min(...cpts.map(p => p.ele));
     const maxE = Math.max(...cpts.map(p => p.ele));
@@ -273,7 +274,7 @@ const ChartView = {
     const eRange = maxE - minE || 1;
 
     const x = d => +(d / maxD * W).toFixed(2);
-    const y = e => +(H - (e - minE) / eRange * H * 0.86 - 4).toFixed(2);
+    const y = e => +(H - (e - minE) / eRange * (H - 18) - 6).toFixed(2);
 
     // Elevation at any distance (linear interpolation between track points)
     const eleAt = d => {
@@ -287,55 +288,64 @@ const ChartView = {
       return cpts[cpts.length - 1].ele;
     };
 
-    // Merge adjacent fine segments that share the same colour band into one
-    // wide band → far fewer, bigger, readable labels.
-    const bands = [];
-    climb.gradProfile.forEach(seg => {
-      const col = this._gradColor(seg.grad);
-      const last = bands[bands.length - 1];
-      if (last && last.col === col) {
-        last.endKm = seg.distKm + seg.widthKm;
-        last.gradSum += seg.grad * seg.widthKm;
-        last.widthKm += seg.widthKm;
-      } else {
-        bands.push({ col, startKm: seg.distKm, endKm: seg.distKm + seg.widthKm,
-                     widthKm: seg.widthKm, gradSum: seg.grad * seg.widthKm });
-      }
-    });
-    bands.forEach(b => b.grad = b.gradSum / (b.widthKm || 1));
+    // Bin into fixed buckets: 1 km normally, 0.5 km for short climbs
+    const step = maxD <= 4 ? 0.5 : 1;
+    const buckets = [];
+    for (let s = 0; s < maxD - 1e-6; s += step) {
+      const e0 = Math.min(s + step, maxD);
+      const w = e0 - s;
+      const grad = w > 0 ? ((eleAt(e0) - eleAt(s)) / (w * 1000)) * 100 : 0;
+      buckets.push({ startKm: s, endKm: e0, widthKm: w, grad, col: this._gradColor(grad) });
+    }
 
-    // Elevation silhouette (used both as the line and as a clip for the colours)
+    // Elevation silhouette (also used as a clip mask for the colour fills)
     const linePts = cpts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.distKm)},${y(p.ele)}`).join(' ');
     const fillPath = `${linePts} L${W},${H} L0,${H} Z`;
     const uid = 'cp' + Math.random().toString(36).slice(2, 8);
 
-    // Colour bands clipped to the area under the elevation line
-    const fills = bands.map(b => {
-      const bx = x(b.startKm), bw = Math.max(0.5, x(b.endKm) - x(b.startKm));
+    // One solid colour block per km bucket, clipped under the silhouette
+    const fills = buckets.map(b => {
+      const bx = x(b.startKm), bw = x(b.endKm) - x(b.startKm);
       return `<rect x="${bx}" y="0" width="${bw}" height="${H}" fill="${b.col}"/>`;
     }).join('');
 
-    // Percentage labels, centred in the coloured fill of each band
-    const labels = bands.map(b => {
-      const bx = x(b.startKm), bw = x(b.endKm) - x(b.startKm);
-      if (bw < 18) return '';
+    // Thin separators between buckets for the bar-chart read
+    const seps = buckets.slice(1).map(b =>
+      `<line x1="${x(b.startKm)}" y1="0" x2="${x(b.startKm)}" y2="${H}" stroke="rgba(0,0,0,0.28)" stroke-width="1"/>`
+    ).join('');
+
+    // Per-km gradient number, riding just under the slope line
+    const labels = buckets.map(b => {
+      const bw = x(b.endKm) - x(b.startKm);
+      if (bw < 12) return '';
       const midKm = (b.startKm + b.endKm) / 2;
-      const cx = bx + bw / 2;
-      const cy = (y(eleAt(midKm)) + H) / 2 + 4;
-      const fs = bw > 46 ? 15 : (bw > 30 ? 13 : 11);
-      return `<text x="${cx}" y="${cy}" text-anchor="middle" font-size="${fs}" font-weight="800"
-        fill="#fff" stroke="rgba(0,0,0,0.45)" stroke-width="2.2" paint-order="stroke"
-        font-family="sans-serif">${Math.round(b.grad)}%</text>`;
+      const cx = x(midKm);
+      const ly = Math.min(y(eleAt(midKm)) + 13, H - 6);
+      const fs = bw > 26 ? 12 : 11;
+      return `<text x="${cx}" y="${ly}" text-anchor="middle" font-size="${fs}" font-weight="800"
+        fill="#fff" stroke="rgba(0,0,0,0.55)" stroke-width="2.4" paint-order="stroke"
+        font-family="sans-serif">${Math.round(b.grad)}</text>`;
     }).join('');
 
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;border-radius:6px;overflow:hidden">
+    // Distance axis (km ticks along the bottom)
+    const tickStep = maxD > 12 ? 2 : 1;
+    let ticks = '';
+    for (let d = tickStep; d < maxD - 0.15; d += tickStep) {
+      ticks += `<text x="${x(d)}" y="${H + AX - 4}" text-anchor="middle" font-size="9"
+        fill="#888" font-family="sans-serif">${d}</text>`;
+    }
+    ticks += `<text x="${W - 2}" y="${H + AX - 4}" text-anchor="end" font-size="9"
+      fill="#888" font-family="sans-serif">${maxD.toFixed(1)} km</text>`;
+
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H + AX}" width="100%" style="display:block;border-radius:6px;overflow:hidden">
       <defs><clipPath id="${uid}"><path d="${fillPath}"/></clipPath></defs>
       <rect width="${W}" height="${H}" fill="#1a1a1a"/>
-      <g clip-path="url(#${uid})">${fills}</g>
+      <g clip-path="url(#${uid})">${fills}${seps}</g>
       <path d="${linePts}" fill="none" stroke="#0a0a0a" stroke-width="2.5" stroke-linejoin="round"/>
-      <text x="4" y="${H - 5}" font-size="10" fill="#ddd" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="sans-serif">${climb.startEle}m</text>
-      <text x="${W - 4}" y="13" font-size="10" fill="#ddd" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="sans-serif" text-anchor="end">${climb.endEle}m</text>
+      <text x="4" y="${H - 5}" font-size="10" fill="#eee" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="sans-serif">${climb.startEle}m</text>
+      <text x="${W - 4}" y="13" font-size="10" fill="#eee" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="sans-serif" text-anchor="end">${climb.endEle}m</text>
       <g>${labels}</g>
+      <g>${ticks}</g>
     </svg>`;
   },
 
