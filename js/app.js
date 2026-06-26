@@ -107,7 +107,8 @@ const App = {
     const overviewTitle = document.getElementById('overview-title');
     const defaultTitle = `Fietsweek ${this.trip.year} — ${this.trip.destination}`;
     const savedTitle = localStorage.getItem(`trip-title-${this.trip.year}`);
-    overviewTitle.textContent = savedTitle || defaultTitle;
+    const baseTitle = this.trip.bakedTitle || defaultTitle;
+    overviewTitle.textContent = savedTitle || baseTitle;
     if (this.isEditor && !overviewTitle.dataset.editBound) {
       overviewTitle.contentEditable = true;
       overviewTitle.className = 'editable-title';
@@ -115,7 +116,7 @@ const App = {
       overviewTitle.addEventListener('blur', () => {
         const val = overviewTitle.textContent.trim();
         if (val) localStorage.setItem(`trip-title-${this.trip.year}`, val);
-        else overviewTitle.textContent = defaultTitle;
+        else overviewTitle.textContent = baseTitle;
       });
       overviewTitle.addEventListener('keydown', e => {
         if (e.key === 'Enter') { e.preventDefault(); overviewTitle.blur(); }
@@ -165,7 +166,7 @@ const App = {
     if (printBtn) printBtn.onclick = () => this._printRoadbook();
 
     const bakeBtn = document.getElementById('btn-bake');
-    if (bakeBtn) bakeBtn.onclick = () => this._exportBakedClimbs();
+    if (bakeBtn) bakeBtn.onclick = () => this._exportBaked();
 
     // Map: init then show all routes
     this.overviewRouteType = 'long';
@@ -357,7 +358,7 @@ const App = {
 
   _roadbookOverviewPage(ovImg) {
     const trip = this.trip;
-    const title = localStorage.getItem(`trip-title-${trip.year}`) || `Fietsweek ${trip.year} — ${trip.destination}`;
+    const title = localStorage.getItem(`trip-title-${trip.year}`) || trip.bakedTitle || `Fietsweek ${trip.year} — ${trip.destination}`;
     const riding = trip.days.filter(d => d.longRoute || d.shortRoute);
     const totalKm = riding.reduce((s, d) => s + (d.longRoute?.km || 0), 0);
     const totalHm = riding.reduce((s, d) => s + (d.longRoute?.hm || 0), 0);
@@ -434,11 +435,16 @@ const App = {
 
     const dayIdx = this.trip.days.indexOf(day);
     const y = this.trip.year;
-    const desc = localStorage.getItem(`stagedesc-${y}-${dayIdx}-${rt}`) ?? day.description;
-    let seg = day.timedSegment;
+    const bs = this.trip.bakedStage?.[`${dayIdx}-${rt}`] || {};
+
+    let desc = localStorage.getItem(`stagedesc-${y}-${dayIdx}-${rt}`);
+    if (desc == null) desc = bs.description != null ? bs.description : day.description;
+
+    let seg = bs.timedSegment || day.timedSegment;
     const segRaw = localStorage.getItem(`kom-${y}-${dayIdx}-${rt}`);
     if (segRaw) { try { seg = JSON.parse(segRaw); } catch (e) {} }
-    let coffee = null;
+
+    let coffee = bs.coffee || null;
     const coffeeRaw = localStorage.getItem(`coffee-${y}-${dayIdx}-${rt}`);
     if (coffeeRaw) { try { coffee = JSON.parse(coffeeRaw); } catch (e) {} }
 
@@ -573,9 +579,18 @@ const App = {
   _komKey()       { return `kom-${this.trip.year}-${this.currentDayIdx}-${this.routeType}`; },
   _coffeeKey()    { return `coffee-${this.trip.year}-${this.currentDayIdx}-${this.routeType}`; },
 
+  // Baked stage edits for the current day/route (permanent, committed in trip.js).
+  _bakedStage() {
+    return this.trip.bakedStage?.[`${this.currentDayIdx}-${this.routeType}`] || null;
+  },
+
+  // Priority: personal localStorage override → baked trip.js value → trip.js day default.
   _loadStageDesc() {
     const s = localStorage.getItem(this._stageDescKey());
-    return s != null ? s : (this.trip.days[this.currentDayIdx]?.description || '');
+    if (s != null) return s;
+    const baked = this._bakedStage();
+    if (baked && baked.description != null) return baked.description;
+    return this.trip.days[this.currentDayIdx]?.description || '';
   },
   _saveStageDesc() {
     const v = document.getElementById('stage-desc-input')?.value ?? '';
@@ -585,6 +600,8 @@ const App = {
   _loadCoffee() {
     const raw = localStorage.getItem(this._coffeeKey());
     if (raw) { try { return JSON.parse(raw); } catch (e) {} }
+    const baked = this._bakedStage();
+    if (baked && baked.coffee) return baked.coffee;
     return null;
   },
   _saveCoffee() {
@@ -812,56 +829,105 @@ const App = {
     return this._getNamedClimbs(gpx.climbs);
   },
 
-  // Export every route the user has actually edited into a JSON file that can be
-  // baked into trip.js (so the data is permanent and identical for everyone).
-  _exportBakedClimbs() {
-    const out = {};
+  // Export every edit (climbs, stage notes, timed segments, coffee/lunch,
+  // map lunch pins and the trip title) into a JSON file that can be baked into
+  // trip.js so the data is permanent and identical for every visitor.
+  // The export is idempotent: already-baked values are carried forward, so a
+  // re-bake never drops earlier edits even from a fresh browser.
+  _exportBaked() {
+    const y = this.trip.year;
+    const bakedClimbs = {};
+    const bakedStage  = {};
+    const bakedLunch  = {};
     const saveDay = this.currentDayIdx, saveRt = this.routeType;
-    let edited = 0;
+    const counts = { climbs: 0, stage: 0, lunch: 0 };
+
     this.trip.days.forEach((day, di) => {
+      // Map lunch pin (per day) — localStorage override, else carry baked forward
+      const lunchRaw = localStorage.getItem(`lunch-${y}-${di}`);
+      if (lunchRaw) { try { bakedLunch[di] = JSON.parse(lunchRaw); counts.lunch++; } catch (e) {} }
+      else if (this.trip.bakedLunch?.[di]) bakedLunch[di] = this.trip.bakedLunch[di];
+
       ['long', 'short'].forEach(rt => {
         const key = `${di}-${rt}`;
-        const gpx = this.gpxCache[key];
-        if (!gpx) return;
         this.currentDayIdx = di; this.routeType = rt;
-        const climbs = this._computeClimbs(gpx);
-        const hasEdits = !!localStorage.getItem(this._climbsOverrideKey()) ||
-          climbs.some((c, idx) =>
-            localStorage.getItem(this._climbKey(idx)) ||
-            localStorage.getItem(this._colUrlKey(idx)) ||
-            localStorage.getItem(this._colCatKey(idx)) ||
-            localStorage.getItem(this._noteKey(idx)));
-        if (!hasEdits) return;
-        edited++;
-        out[key] = climbs.map((c, idx) => {
-          const def = {
-            startDistKm: +c.startDistKm.toFixed(3),
-            endDistKm: +c.endDistKm.toFixed(3),
-            colName: c.colName || null,
-            colUrl: c.colUrl || null,
-            cat: c.cat || null
-          };
-          const note = this._loadClimbNote(idx);
-          if (note) def.note = note;
-          return def;
-        });
+
+        // ── Climbs ──
+        const gpx = this.gpxCache[key];
+        if (gpx) {
+          const climbs = this._computeClimbs(gpx);
+          const hasClimbEdits = !!localStorage.getItem(this._climbsOverrideKey()) ||
+            !!this._bakedClimbDefs() ||
+            climbs.some((c, idx) =>
+              localStorage.getItem(this._climbKey(idx)) ||
+              localStorage.getItem(this._colUrlKey(idx)) ||
+              localStorage.getItem(this._colCatKey(idx)) ||
+              localStorage.getItem(this._noteKey(idx)));
+          if (hasClimbEdits) {
+            counts.climbs++;
+            bakedClimbs[key] = climbs.map((c, idx) => {
+              const def = {
+                startDistKm: +c.startDistKm.toFixed(3),
+                endDistKm: +c.endDistKm.toFixed(3),
+                colName: c.colName || null,
+                colUrl: c.colUrl || null,
+                cat: c.cat || null
+              };
+              const note = this._loadClimbNote(idx);
+              if (note) def.note = note;
+              return def;
+            });
+          }
+        }
+
+        // ── Stage notes (description / timed segment / coffee-lunch) ──
+        const bs = this.trip.bakedStage?.[key] || {};
+        const entry = {};
+        const lsDesc = localStorage.getItem(`stagedesc-${y}-${di}-${rt}`);
+        if (lsDesc != null) entry.description = lsDesc;
+        else if (bs.description != null) entry.description = bs.description;
+
+        const lsKom = localStorage.getItem(`kom-${y}-${di}-${rt}`);
+        if (lsKom) { try { entry.timedSegment = JSON.parse(lsKom); } catch (e) {} }
+        else if (bs.timedSegment) entry.timedSegment = bs.timedSegment;
+
+        const lsCoffee = localStorage.getItem(`coffee-${y}-${di}-${rt}`);
+        if (lsCoffee) { try { entry.coffee = JSON.parse(lsCoffee); } catch (e) {} }
+        else if (bs.coffee) entry.coffee = bs.coffee;
+
+        if (Object.keys(entry).length) { bakedStage[key] = entry; counts.stage++; }
       });
     });
     this.currentDayIdx = saveDay; this.routeType = saveRt;
 
-    if (!edited) {
-      alert('Geen klim-aanpassingen gevonden om te bakken.');
+    // Trip title
+    const bakedTitle = localStorage.getItem(`trip-title-${y}`) || this.trip.bakedTitle || null;
+
+    const out = {};
+    if (bakedTitle) out.bakedTitle = bakedTitle;
+    if (Object.keys(bakedClimbs).length) out.bakedClimbs = bakedClimbs;
+    if (Object.keys(bakedStage).length)  out.bakedStage  = bakedStage;
+    if (Object.keys(bakedLunch).length)  out.bakedLunch  = bakedLunch;
+
+    if (!Object.keys(out).length) {
+      alert('Geen aanpassingen gevonden om te bakken.');
       return;
     }
+
     const json = JSON.stringify(out, null, 2);
-    console.log('[bake] klim-edits:\n' + json);
+    console.log('[bake] alle edits — plak de eigenschappen hieronder in trips/<jaar>/trip.js:\n' + json);
     const blob = new Blob([json], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `klim-bake-${this.trip.year}.json`;
+    a.download = `bake-${y}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    alert(`${edited} route(s) met aanpassingen geëxporteerd naar Downloads als klim-bake-${this.trip.year}.json.`);
+    alert(
+      `Geëxporteerd naar Downloads als bake-${y}.json.\n\n` +
+      `Klimmen: ${counts.climbs} route(s)\nEtappe-notities: ${counts.stage} route(s)\nLunch-pins: ${counts.lunch}\n` +
+      (bakedTitle ? 'Titel: ja\n' : '') +
+      `\nVervang/voeg de bovenste eigenschappen (bakedClimbs, bakedStage, bakedLunch, bakedTitle) toe in trip.js. Het JSON-bestand staat ook in de console.`
+    );
   },
 
   // Apply an edit to the climb definitions, persist, and refresh pills + markers
@@ -1229,13 +1295,14 @@ const App = {
   },
 
   _getTimedSegment() {
-    // Check for saved KOM first (from promoted climb)
-    const komKey = `kom-${this.trip.year}-${this.currentDayIdx}-${this.routeType}`;
-    const saved = localStorage.getItem(komKey);
+    // Personal override (from editor edit or promoted KOM) wins
+    const saved = localStorage.getItem(this._komKey());
     if (saved) {
       try { return JSON.parse(saved); } catch(e) {}
     }
-    // Fall back to trip data
+    // Then baked trip.js value, then the day default
+    const baked = this._bakedStage();
+    if (baked && baked.timedSegment) return baked.timedSegment;
     return this.trip.days[this.currentDayIdx]?.timedSegment;
   },
 
@@ -1346,7 +1413,8 @@ const App = {
 
   _loadLunch(dayIdx) {
     const raw = localStorage.getItem(this._lunchKey(dayIdx));
-    return raw ? JSON.parse(raw) : null;
+    if (raw) { try { return JSON.parse(raw); } catch (e) {} }
+    return this.trip.bakedLunch?.[dayIdx] || null;
   },
 
   _saveLunch(dayIdx, lngLat) {
