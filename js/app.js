@@ -293,7 +293,9 @@ const App = {
   // ─── PRINTABLE ROADBOOK (A3 landscape) ───────────────────────────────────
 
   _esc(s) {
-    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   },
 
   // Compute named climbs (with profiles, honouring overrides/baked edits) for
@@ -430,9 +432,20 @@ const App = {
       ? `<img class="pr-stage-map" src="${img}" alt="Routekaart">`
       : `<div class="pr-map-missing">Kaart kon niet worden geladen</div>`;
 
+    const dayIdx = this.trip.days.indexOf(day);
+    const y = this.trip.year;
+    const desc = localStorage.getItem(`stagedesc-${y}-${dayIdx}-${rt}`) ?? day.description;
+    let seg = day.timedSegment;
+    const segRaw = localStorage.getItem(`kom-${y}-${dayIdx}-${rt}`);
+    if (segRaw) { try { seg = JSON.parse(segRaw); } catch (e) {} }
+    let coffee = null;
+    const coffeeRaw = localStorage.getItem(`coffee-${y}-${dayIdx}-${rt}`);
+    if (coffeeRaw) { try { coffee = JSON.parse(coffeeRaw); } catch (e) {} }
+
     const notes = [];
-    if (day.description) notes.push(`📖 ${this._esc(day.description)}`);
-    if (day.timedSegment) notes.push(`⏱ Getimed: ${this._esc(day.timedSegment.name)} · ${day.timedSegment.km} km · ${day.timedSegment.gradient}%`);
+    if (desc) notes.push(`📖 ${this._esc(desc)}`);
+    if (seg) notes.push(`⏱ Getimed: ${this._esc(seg.name)}${seg.km != null ? ' · ' + seg.km + ' km' : ''}${seg.gradient != null ? ' · ' + seg.gradient + '%' : ''}`);
+    if (coffee && (coffee.text || coffee.mapsUrl)) notes.push(`☕ Koffie/lunch: ${this._esc(coffee.text || '')}`);
     if (day.alternative) notes.push(`🔀 ${this._esc(day.alternative)}`);
 
     return `<section class="print-page pr-stage">
@@ -529,19 +542,8 @@ const App = {
       ${route.duration ? `<div class="stat-box"><div class="stat-value">${route.duration}</div><div class="stat-label">duur</div></div>` : ''}
       <a href="${route.strava}" target="_blank" class="strava-link">Bekijk op Strava ↗</a>` : '';
 
-    // Description + timed segment + alternative
-    let notesHtml = '';
-    if (day.description)
-      notesHtml += `<div class="notes-box"><span class="notes-icon">📖</span><span>${day.description}</span></div>`;
-    if (day.timedSegment)
-      notesHtml += `<div class="notes-box timed-seg"><span class="notes-icon">⏱</span>
-        <span><strong>Getimed segment:</strong> ${day.timedSegment.name} · ${day.timedSegment.km} km · ${day.timedSegment.gradient}%
-        ${day.timedSegment.stravaUrl ? `<a href="${day.timedSegment.stravaUrl}" target="_blank" class="seg-link">↗</a>` : ''}</span></div>`;
-    if (day.alternative)
-      notesHtml += `<div class="notes-box"><span class="notes-icon">🔀</span><span><strong>Alternatief:</strong> ${day.alternative}</span></div>`;
-    if (day.comments)
-      notesHtml += `<div class="notes-box"><span class="notes-icon">📝</span><span>${day.comments}</span></div>`;
-    document.getElementById('day-notes').innerHTML = notesHtml;
+    // Description + timed segment + coffee/lunch + alternative + comments
+    this._renderDayNotes(day);
 
     const cacheKey = `${this.currentDayIdx}-${this.routeType}`;
     const gpx = this.gpxCache[cacheKey];
@@ -561,6 +563,128 @@ const App = {
       gpxEl.querySelector('.gpx-drop-zone p').textContent = 'Sleep GPX bestand hierheen of klik om te uploaden';
       gpxEl.querySelector('.gpx-icon').textContent = '📂';
     }
+  },
+
+  // ─── EDITABLE STAGE NOTES (description / timed segment / coffee-lunch) ─────
+  // Editor sees inline editable fields; visitors see read-only display.
+  // Values persist per day+route in localStorage, falling back to trip.js data.
+
+  _stageDescKey() { return `stagedesc-${this.trip.year}-${this.currentDayIdx}-${this.routeType}`; },
+  _komKey()       { return `kom-${this.trip.year}-${this.currentDayIdx}-${this.routeType}`; },
+  _coffeeKey()    { return `coffee-${this.trip.year}-${this.currentDayIdx}-${this.routeType}`; },
+
+  _loadStageDesc() {
+    const s = localStorage.getItem(this._stageDescKey());
+    return s != null ? s : (this.trip.days[this.currentDayIdx]?.description || '');
+  },
+  _saveStageDesc() {
+    const v = document.getElementById('stage-desc-input')?.value ?? '';
+    localStorage.setItem(this._stageDescKey(), v);
+  },
+
+  _loadCoffee() {
+    const raw = localStorage.getItem(this._coffeeKey());
+    if (raw) { try { return JSON.parse(raw); } catch (e) {} }
+    return null;
+  },
+  _saveCoffee() {
+    const text = (document.getElementById('coffee-text')?.value || '').trim();
+    let url = (document.getElementById('coffee-url')?.value || '').trim();
+    if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+    if (!text && !url) localStorage.removeItem(this._coffeeKey());
+    else localStorage.setItem(this._coffeeKey(), JSON.stringify({ text, mapsUrl: url || null }));
+    this._renderDayNotes(this.trip.days[this.currentDayIdx]);
+  },
+
+  _saveTimedSegment() {
+    const name = (document.getElementById('seg-name')?.value || '').trim();
+    const km   = parseFloat(document.getElementById('seg-km')?.value);
+    const grad = parseFloat(document.getElementById('seg-grad')?.value);
+    let url    = (document.getElementById('seg-url')?.value || '').trim();
+    if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+    if (!name && isNaN(km) && isNaN(grad) && !url) {
+      localStorage.removeItem(this._komKey());
+    } else {
+      const existing = this._getTimedSegment() || {};
+      const seg = {
+        name: name || existing.name || 'Getimed segment',
+        km: isNaN(km) ? (existing.km ?? null) : km,
+        gradient: isNaN(grad) ? (existing.gradient ?? null) : grad,
+        stravaUrl: url || null
+      };
+      if (existing.startDistKm != null) seg.startDistKm = existing.startDistKm;
+      localStorage.setItem(this._komKey(), JSON.stringify(seg));
+    }
+    this._refreshChart();
+    this._renderDayNotes(this.trip.days[this.currentDayIdx]);
+  },
+
+  _renderDayNotes(day) {
+    const ed = this.isEditor;
+    const desc = this._loadStageDesc();
+    const seg = this._getTimedSegment();
+    const coffee = this._loadCoffee();
+    let html = '';
+
+    // Beschrijving / etappe-notitie
+    if (ed) {
+      html += `<div class="notes-box note-edit">
+        <span class="notes-icon">📖</span>
+        <div class="note-edit-body">
+          <label class="note-edit-label">Beschrijving</label>
+          <textarea id="stage-desc-input" class="stage-edit-textarea" placeholder="Beschrijving van de etappe..." oninput="App._saveStageDesc()">${this._esc(desc)}</textarea>
+        </div>
+      </div>`;
+    } else if (desc && desc.trim()) {
+      html += `<div class="notes-box"><span class="notes-icon">📖</span><span>${this._esc(desc)}</span></div>`;
+    }
+
+    // Getimed segment
+    if (ed) {
+      html += `<div class="notes-box timed-seg note-edit">
+        <span class="notes-icon">⏱</span>
+        <div class="note-edit-body">
+          <label class="note-edit-label">Getimed segment</label>
+          <div class="stage-edit-grid">
+            <input id="seg-name" class="stage-edit-input" placeholder="Naam segment" value="${this._esc(seg?.name || '')}">
+            <input id="seg-km" class="stage-edit-input narrow" type="number" step="0.1" min="0" placeholder="km" value="${seg?.km ?? ''}">
+            <input id="seg-grad" class="stage-edit-input narrow" type="number" step="0.1" placeholder="% gem." value="${seg?.gradient ?? ''}">
+            <input id="seg-url" class="stage-edit-input wide" type="url" placeholder="https://www.strava.com/segments/..." value="${this._esc(seg?.stravaUrl || '')}">
+          </div>
+          <button class="stage-save-btn" onclick="App._saveTimedSegment()">Segment opslaan</button>
+        </div>
+      </div>`;
+    } else if (seg) {
+      html += `<div class="notes-box timed-seg"><span class="notes-icon">⏱</span>
+        <span><strong>Getimed segment:</strong> ${this._esc(seg.name)}${seg.km != null ? ' · ' + seg.km + ' km' : ''}${seg.gradient != null ? ' · ' + seg.gradient + '%' : ''}
+        ${seg.stravaUrl ? `<a href="${this._esc(seg.stravaUrl)}" target="_blank" class="seg-link">Strava ↗</a>` : ''}</span></div>`;
+    }
+
+    // Koffie / lunch
+    if (ed) {
+      html += `<div class="notes-box coffee-box note-edit">
+        <span class="notes-icon">☕</span>
+        <div class="note-edit-body">
+          <label class="note-edit-label">Koffie / lunch</label>
+          <textarea id="coffee-text" class="stage-edit-textarea" placeholder="bv. Boulangerie in Beaufort, terras bovenaan de col...">${this._esc(coffee?.text || '')}</textarea>
+          <input id="coffee-url" class="stage-edit-input wide" type="url" placeholder="https://maps.google.com/..." value="${this._esc(coffee?.mapsUrl || '')}">
+          <button class="stage-save-btn" onclick="App._saveCoffee()">Koffie/lunch opslaan</button>
+        </div>
+      </div>`;
+    } else if (coffee && (coffee.text || coffee.mapsUrl)) {
+      html += `<div class="notes-box coffee-box"><span class="notes-icon">☕</span>
+        <span>${coffee.text ? `<strong>Koffie / lunch:</strong> ${this._esc(coffee.text)}` : '<strong>Koffie / lunch</strong>'}
+        ${coffee.mapsUrl ? `<a href="${this._esc(coffee.mapsUrl)}" target="_blank" class="seg-link">Google Maps ↗</a>` : ''}</span></div>`;
+    }
+
+    // Alternatief & opmerkingen (read-only uit trip.js, voor iedereen)
+    if (day.alternative)
+      html += `<div class="notes-box"><span class="notes-icon">🔀</span><span><strong>Alternatief:</strong> ${this._esc(day.alternative)}</span></div>`;
+    if (day.comments)
+      html += `<div class="notes-box"><span class="notes-icon">📝</span><span>${this._esc(day.comments)}</span></div>`;
+
+    document.getElementById('day-notes').innerHTML = html;
   },
 
   // Build named climbs: match by closest summit elevation, then check localStorage overrides
@@ -657,6 +781,21 @@ const App = {
   _bakedClimbDefs() {
     const b = this.trip.bakedClimbs?.[`${this.currentDayIdx}-${this.routeType}`];
     return Array.isArray(b) ? b : null;
+  },
+
+  // Ensure an editable personal override exists when persisting a per-climb
+  // edit (category, name, link). When climbs come from baked trip.js defs,
+  // _computeClimbs uses the baked path and ignores the legacy per-index keys —
+  // so without this the edit would silently revert on the next render. We snapshot
+  // the current climbs into a personal override the first time so edits stick.
+  // Returns the override array, or null when neither override nor baked defs exist.
+  _ensureClimbDefs() {
+    let defs = this._loadClimbDefs();
+    if (!defs && this._bakedClimbDefs()) {
+      defs = this._materializeClimbDefs();
+      this._saveClimbDefs(defs);
+    }
+    return defs;
   },
 
   // Effective climbs for current day/route.
@@ -1001,8 +1140,9 @@ const App = {
 
     if (this._namedClimbs[idx]) this._namedClimbs[idx].colName = name;
 
-    // If a climb override is active, store the name inside it; else use the legacy per-climb key
-    const defs = this._loadClimbDefs();
+    // If a climb override is active (or baked defs need materializing), store the
+    // name inside it; else use the legacy per-climb key.
+    const defs = this._ensureClimbDefs();
     if (defs) {
       if (defs[idx]) { defs[idx].colName = name; this._saveClimbDefs(defs); }
     } else {
@@ -1034,7 +1174,7 @@ const App = {
     if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
     if (this._namedClimbs[idx]) this._namedClimbs[idx].colUrl = url || null;
 
-    const defs = this._loadClimbDefs();
+    const defs = this._ensureClimbDefs();
     if (defs) {
       if (defs[idx]) { defs[idx].colUrl = url || null; this._saveClimbDefs(defs); }
     } else {
@@ -1049,7 +1189,7 @@ const App = {
     const cat = val === 'auto' ? null : val;
     if (this._namedClimbs[idx]) this._namedClimbs[idx].cat = cat;
 
-    const defs = this._loadClimbDefs();
+    const defs = this._ensureClimbDefs();
     if (defs) {
       if (defs[idx]) { defs[idx].cat = cat; this._saveClimbDefs(defs); }
     } else {
