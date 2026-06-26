@@ -5,11 +5,30 @@ const App = {
   overviewRouteType: 'long',
   gpxCache: {},
 
+  isEditor: false,
+
   init() {
+    this._initEditorMode();
     this._applyTheme();
     document.getElementById('btn-theme')?.addEventListener('click', () => this._toggleTheme());
     this._renderHome();
     this._bindHomeEvents();
+  },
+
+  // ─── EDITOR MODE ─────────────────────────────────────────────────────────
+  // Only the owner edits. ?edit=1 unlocks editing and remembers it (localStorage);
+  // ?edit=0 locks it again. Visitors never see editing controls. This is a UI
+  // gate, not security — a static site has no backend, so a visitor's changes
+  // only ever touch their own browser's localStorage and never the shared site.
+  _initEditorMode() {
+    const params = new URLSearchParams(location.search);
+    if (params.has('edit')) {
+      const on = params.get('edit') !== '0';
+      if (on) localStorage.setItem('editor', '1');
+      else localStorage.removeItem('editor');
+    }
+    this.isEditor = localStorage.getItem('editor') === '1';
+    document.documentElement.classList.toggle('editor', this.isEditor);
   },
 
   // ─── THEME ───────────────────────────────────────────────────────────────
@@ -89,16 +108,19 @@ const App = {
     const defaultTitle = `Fietsweek ${this.trip.year} — ${this.trip.destination}`;
     const savedTitle = localStorage.getItem(`trip-title-${this.trip.year}`);
     overviewTitle.textContent = savedTitle || defaultTitle;
-    overviewTitle.contentEditable = true;
-    overviewTitle.className = 'editable-title';
-    overviewTitle.addEventListener('blur', () => {
-      const val = overviewTitle.textContent.trim();
-      if (val) localStorage.setItem(`trip-title-${this.trip.year}`, val);
-      else overviewTitle.textContent = defaultTitle;
-    });
-    overviewTitle.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); overviewTitle.blur(); }
-    });
+    if (this.isEditor && !overviewTitle.dataset.editBound) {
+      overviewTitle.contentEditable = true;
+      overviewTitle.className = 'editable-title';
+      overviewTitle.dataset.editBound = '1';
+      overviewTitle.addEventListener('blur', () => {
+        const val = overviewTitle.textContent.trim();
+        if (val) localStorage.setItem(`trip-title-${this.trip.year}`, val);
+        else overviewTitle.textContent = defaultTitle;
+      });
+      overviewTitle.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); overviewTitle.blur(); }
+      });
+    }
 
     document.getElementById('overview-stats').innerHTML = `
       <div class="stat-pill">🚴 ${riding.length} ritdagen</div>
@@ -704,7 +726,8 @@ const App = {
       chip.className = 'popup-cat-chip' + (effCat ? ` cat-${effCat}` : ' hidden');
     }
 
-    document.getElementById('popup-stats').innerHTML = `
+    const ed = this.isEditor;
+    const statsHtml = `
       <div class="popup-stat-row">
         <div class="popup-stat"><span class="pv">${c.lengthKm.toFixed(1)}</span><span class="pl">km</span></div>
         <div class="popup-stat"><span class="pv">${c.gain}</span><span class="pl">hm</span></div>
@@ -712,7 +735,9 @@ const App = {
         <div class="popup-stat"><span class="pv">${c.maxGrad}%</span><span class="pl">max</span></div>
         <div class="popup-stat"><span class="pv">${c.startEle}m</span><span class="pl">start</span></div>
         <div class="popup-stat"><span class="pv">${c.endEle}m</span><span class="pl">top</span></div>
-      </div>
+      </div>`;
+
+    const editToolsHtml = ed ? `
       <div class="popup-edit-tools">
         <button class="popup-tool-btn" onclick="App._toggleGeomEdit()" title="Start- en eindpunt aanpassen">✏️ Start/Top</button>
         ${hasNext ? `<button class="popup-tool-btn" onclick="App._mergeClimbWithNext(${idx})" title="Samenvoegen met volgende klim">🔗 Samenvoegen</button>` : ''}
@@ -722,11 +747,13 @@ const App = {
         <label class="popup-geom-label">Start <input id="popup-start-input" type="number" step="0.1" min="0" value="${c.startDistKm.toFixed(1)}" class="popup-geom-input"> km</label>
         <label class="popup-geom-label">Top <input id="popup-end-input" type="number" step="0.1" min="0" value="${c.endDistKm.toFixed(1)}" class="popup-geom-input"> km</label>
         <button class="popup-save-btn" onclick="App._saveClimbGeometry(${idx})">Opslaan</button>
-      </div>
+      </div>` : '';
+
+    const catHtml = `
       <div class="popup-cat-row">
         <span class="popup-cat-label">Categorie</span>
         <span class="cat-badge cat-${effCat || 'none'}">${effCat ? ChartView.catLabel(effCat) : 'n.v.t.'}</span>
-        <select class="popup-cat-select" onchange="App._setClimbCategory(${idx}, this.value)">
+        ${ed ? `<select class="popup-cat-select" onchange="App._setClimbCategory(${idx}, this.value)">
           <option value="auto"${!c.cat ? ' selected' : ''}>Auto${autoCat ? ` (${ChartView.catLabel(autoCat)})` : ''}</option>
           <option value="HC"${c.cat === 'HC' ? ' selected' : ''}>HC</option>
           <option value="1"${c.cat === '1' ? ' selected' : ''}>Cat 1</option>
@@ -734,23 +761,40 @@ const App = {
           <option value="3"${c.cat === '3' ? ' selected' : ''}>Cat 3</option>
           <option value="4"${c.cat === '4' ? ' selected' : ''}>Cat 4</option>
           <option value="none"${c.cat === 'none' ? ' selected' : ''}>Geen</option>
-        </select>
-      </div>
-      <button class="btn-promote-kom" onclick="App._promoteClimbToKom(${idx})" title="Stel in als KOM segment">⏱ Stel in als KOM</button>
+        </select>` : ''}
+      </div>`;
+
+    const komHtml = ed ? `<button class="btn-promote-kom" onclick="App._promoteClimbToKom(${idx})" title="Stel in als KOM segment">⏱ Stel in als KOM</button>` : '';
+
+    const linkHtml = `
       <div class="popup-link-row">
         ${c.colUrl
           ? `<a href="${c.colUrl}" target="_blank" class="cyclingcols-link">Bekijk op cyclingcols.com ↗</a>
-             <button class="popup-link-edit" onclick="App._toggleUrlEdit()" title="Link wijzigen">✏️</button>`
-          : `<button class="popup-tool-btn" onclick="App._toggleUrlEdit()" title="Cyclingcols-link toevoegen">🔗 Link toevoegen</button>`}
+             ${ed ? `<button class="popup-link-edit" onclick="App._toggleUrlEdit()" title="Link wijzigen">✏️</button>` : ''}`
+          : (ed ? `<button class="popup-tool-btn" onclick="App._toggleUrlEdit()" title="Cyclingcols-link toevoegen">🔗 Link toevoegen</button>` : '')}
       </div>
-      <div id="popup-url-row" class="popup-geom-row hidden">
+      ${ed ? `<div id="popup-url-row" class="popup-geom-row hidden">
         <input id="popup-url-input" type="url" placeholder="https://www.cyclingcols.com/col/..." value="${c.colUrl || ''}" class="popup-url-input">
         <button class="popup-save-btn" onclick="App._saveClimbUrl(${idx})">Opslaan</button>
-      </div>
+      </div>` : ''}`;
+
+    let noteHtml = '';
+    if (ed) {
+      noteHtml = `
       <div class="popup-note">
         <label class="popup-note-label">📝 Notitie</label>
         <textarea id="popup-note-input" class="popup-note-input" placeholder="bijv. café bovenaan, mooi uitzicht, lastige bocht..." oninput="App._saveClimbNote(${idx})">${savedNote}</textarea>
       </div>`;
+    } else if (savedNote && savedNote.trim()) {
+      noteHtml = `
+      <div class="popup-note">
+        <label class="popup-note-label">📝 Notitie</label>
+        <p class="popup-note-readonly">${savedNote.replace(/</g, '&lt;')}</p>
+      </div>`;
+    }
+
+    document.getElementById('popup-stats').innerHTML =
+      statsHtml + editToolsHtml + catHtml + komHtml + linkHtml + noteHtml;
 
     ChartView.renderClimbProfile(document.getElementById('popup-profile'), c);
     ChartView.renderLegend(document.getElementById('popup-legend'));

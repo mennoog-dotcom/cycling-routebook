@@ -41,13 +41,13 @@
           <div class="overview-hero">
             <h1 id="overview-title">Fietsweek 2025</h1>
             <div id="overview-stats" class="overview-stats"></div>
-            <div class="overview-hero-actions">
-              <button id="btn-print" class="btn-secondary" title="Print of bewaar als PDF">🖨 Print roadbook</button>
-              <button id="btn-bake" class="btn-secondary" title="Bewaar je klim-aanpassingen permanent in trip.js">💾 Bak klim-edits in</button>
-            </div>
           </div>
           <div id="overview-days" class="overview-days"></div>
           <div id="overview-history" class="overview-history"></div>
+          <div class="overview-editor-tools editor-only">
+            <button id="btn-print" class="btn-secondary" title="Print of bewaar als PDF">🖨 Print roadbook</button>
+            <button id="btn-bake" class="btn-secondary" title="Bewaar je klim-aanpassingen permanent in trip.js">💾 Bak klim-edits in</button>
+          </div>
         </div>
         <div class="overview-map-wrap">
           <div id="overview-map"></div>
@@ -75,7 +75,7 @@
               <div class="popup-header-left">
                 <span id="popup-cat-chip" class="popup-cat-chip hidden"></span>
                 <span id="popup-col-name" class="popup-col-name"></span>
-                <button id="popup-edit-btn" class="popup-icon-btn" title="Naam aanpassen">✏️</button>
+                <button id="popup-edit-btn" class="popup-icon-btn editor-only" title="Naam aanpassen">✏️</button>
               </div>
               <button id="popup-close-btn" class="popup-close-btn">✕</button>
             </div>
@@ -96,7 +96,7 @@
             <div class="map-btns">
               <button id="btn-animate" class="map-action-btn">▶ Animeer</button>
               <button id="btn-reset-cam" class="map-action-btn">🎥 Reset</button>
-              <button id="btn-lunch" class="map-action-btn" title="Klik op kaart om lunchplek te plaatsen">🍽️ Lunch</button>
+              <button id="btn-lunch" class="map-action-btn editor-only" title="Klik op kaart om lunchplek te plaatsen">🍽️ Lunch</button>
               <button id="btn-share" class="map-action-btn" title="Deel deze dag als afbeelding">📷 Deel</button>
             </div>
           </div>
@@ -115,7 +115,7 @@
 
           <div id="day-climbs"></div>
 
-          <section class="day-section" id="day-gpx-upload">
+          <section class="day-section editor-only" id="day-gpx-upload">
             <div class="gpx-section-header">
               <h3>GPX bestand</h3>
               <button id="btn-replace-gpx" class="btn-replace-gpx" title="Vervang huidig GPX bestand">↑ Vervang GPX</button>
