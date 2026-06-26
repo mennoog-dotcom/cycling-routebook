@@ -210,7 +210,7 @@ const App = {
       return `<div class="day-card ${hasRide ? 'clickable' : 'rest-day'}${ed ? ' draggable-card' : ''}" ${dragAttrs} ${click}>
         <div class="day-card-top">
           <div class="day-card-left">
-            ${ed ? '<span class="day-drag-handle" title="Sleep om dagen te wisselen">⠿</span>' : ''}
+            ${ed ? '<span class="day-drag-handle" title="Sleep om dagen te wisselen">⠿ sleep</span>' : ''}
             <div class="day-card-emoji" style="${hasRide ? `border-left: 3px solid ${dotColor}; padding-left:6px` : ''}">${day.emoji}</div>
             <div class="day-card-label">
               <span class="day-name">Dag ${slot.dayNum} · ${slot.label}</span>

@@ -164,10 +164,17 @@ h3 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: upp
 .day-card.draggable-card.dragging { opacity: .4; cursor: grabbing; }
 .day-card.drag-over { border-color: var(--orange); border-style: dashed; background: #1d1d1d; }
 .day-drag-handle {
-  color: var(--muted); font-size: 1rem; line-height: 1; cursor: grab;
-  user-select: none; padding: 0 2px;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .03em;
+  line-height: 1; cursor: grab; user-select: none;
+  color: var(--orange);
+  background: rgba(252, 76, 2, 0.12);
+  border: 1px solid rgba(252, 76, 2, 0.45);
+  border-radius: 6px; padding: 4px 7px;
+  text-transform: uppercase;
 }
-.day-card.draggable-card:hover .day-drag-handle { color: var(--orange); }
+.day-card.draggable-card:hover .day-drag-handle { background: rgba(252, 76, 2, 0.22); }
+.day-card.rest-day .day-drag-handle { opacity: 1; }
 
 .day-card-top { display: flex; align-items: center; justify-content: space-between; }
 .day-card-left { display: flex; align-items: center; gap: 10px; }
