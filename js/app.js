@@ -6,8 +6,23 @@ const App = {
   gpxCache: {},
 
   init() {
+    this._applyTheme();
+    document.getElementById('btn-theme')?.addEventListener('click', () => this._toggleTheme());
     this._renderHome();
     this._bindHomeEvents();
+  },
+
+  // ─── THEME ───────────────────────────────────────────────────────────────
+  _applyTheme() {
+    const t = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+    const b = document.getElementById('btn-theme');
+    if (b) b.textContent = t === 'light' ? '☀️' : '🌙';
+  },
+  _toggleTheme() {
+    const cur = localStorage.getItem('theme') || 'dark';
+    localStorage.setItem('theme', cur === 'light' ? 'dark' : 'light');
+    this._applyTheme();
   },
 
   // ─── HOME ────────────────────────────────────────────────────────────────
@@ -91,6 +106,8 @@ const App = {
       <div class="stat-pill">⛰️ ${totalHm.toLocaleString()} hm</div>
       <div class="stat-pill">📍 ${this.trip.basecamp}</div>`;
 
+    this._renderWeekScore();
+
     // Day cards
     document.getElementById('overview-days').innerHTML = this.trip.days.map((day, i) => {
       const hasRide = !!(day.longRoute || day.shortRoute);
@@ -122,6 +139,9 @@ const App = {
 
     this._renderGpxDownloadHelper();
 
+    const printBtn = document.getElementById('btn-print');
+    if (printBtn) printBtn.onclick = () => window.print();
+
     // Map: init then show all routes
     this.overviewRouteType = 'long';
     MapView.init('overview-map', this.trip.center, this.trip.defaultZoom);
@@ -129,6 +149,61 @@ const App = {
       MapView.showAllRoutes(this.gpxCache, this.overviewRouteType, this.trip);
     });
     this._bindOverviewMapEvents();
+  },
+
+  // Climbs for an arbitrary day/route (honours overrides) — used for week stats
+  _climbsForDay(dayIdx, routeType) {
+    const gpx = this.gpxCache[`${dayIdx}-${routeType}`];
+    if (!gpx) return [];
+    const raw = localStorage.getItem(`climbs-${this.trip.year}-${dayIdx}-${routeType}`);
+    let defs = null;
+    try { const d = JSON.parse(raw); if (Array.isArray(d)) defs = d; } catch (e) {}
+    if (defs) {
+      return defs.map(def => {
+        const cl = GPXParser.buildClimbFromDist(gpx.points, def.startDistKm, def.endDistKm);
+        return { ...cl, cat: def.cat || null };
+      });
+    }
+    return gpx.climbs.map((c, idx) => {
+      const cat = localStorage.getItem(`colcat-${this.trip.year}-${dayIdx}-${routeType}-${idx}`);
+      return { ...c, cat: cat || null };
+    });
+  },
+
+  // Tour-style climbing points for the whole week + per-category counts
+  _weekStats() {
+    const pts = { HC: 10, '1': 6, '2': 4, '3': 2, '4': 1 };
+    const counts = { HC: 0, '1': 0, '2': 0, '3': 0, '4': 0 };
+    let total = 0, n = 0;
+    this.trip.days.forEach((day, i) => {
+      if (!(day.longRoute || day.shortRoute)) return;
+      const rt = day.longRoute ? 'long' : 'short';
+      this._climbsForDay(i, rt).forEach(c => {
+        const cat = this._climbCategory(c);
+        if (cat) { total += pts[cat] || 0; counts[cat]++; n++; }
+      });
+    });
+    return { total, counts, n };
+  },
+
+  _renderWeekScore() {
+    const hero = document.querySelector('.overview-hero');
+    if (!hero) return;
+    let el = document.getElementById('overview-score');
+    if (!el) { el = document.createElement('div'); el.id = 'overview-score'; el.className = 'week-score'; hero.appendChild(el); }
+
+    const ws = this._weekStats();
+    if (!ws.n) { el.innerHTML = ''; return; }
+    const order = ['HC', '1', '2', '3', '4'];
+    const badges = order.filter(k => ws.counts[k]).map(k =>
+      `<span class="week-badge cat-${k}">${ws.counts[k]}× ${ChartView.catLabel(k)}</span>`
+    ).join('');
+    el.innerHTML = `
+      <div class="week-score-head">
+        <span class="ws-pts">${ws.total}</span>
+        <span class="ws-pts-label">klimpunten · ${ws.n} cols deze week</span>
+      </div>
+      <div class="week-badges">${badges}</div>`;
   },
 
   _bindOverviewMapEvents() {
@@ -385,6 +460,14 @@ const App = {
     MapView.showClimbMarkers(this._namedClimbs, gpx.points, idx => this._showClimbPopup(idx));
   },
 
+  // Map → chart hover: highlight the altitude chart as the cursor follows the route
+  _enableChartSync(gpx) {
+    MapView.enableChartSync(gpx, km => {
+      if (km == null) ChartView.clearHover();
+      else ChartView.showHoverAtDistanceKm(km);
+    });
+  },
+
   // Re-render the stage altitude chart (keeps KOM + climb category labels in sync)
   _refreshChart() {
     const gpx = this.gpxCache[`${this.currentDayIdx}-${this.routeType}`];
@@ -460,6 +543,43 @@ const App = {
     document.getElementById('climb-popup').classList.add('hidden');
   },
 
+  // Difficulty score (same basis as categorisation) — for picking the queen climb
+  _climbScore(c) { return (c.lengthKm || 0) * (c.avgGrad || 0) * (c.avgGrad || 0); },
+
+  // Index of the hardest categorised climb of the day, or -1
+  _queenIdx(climbs) {
+    const rankOf = { HC: 5, '1': 4, '2': 3, '3': 2, '4': 1 };
+    let best = -1, bestRank = 0, bestScore = -1;
+    (climbs || []).forEach((c, i) => {
+      const rank = rankOf[this._climbCategory(c)] || 0;
+      if (!rank) return;
+      const sc = this._climbScore(c);
+      if (rank > bestRank || (rank === bestRank && sc > bestScore)) {
+        bestRank = rank; bestScore = sc; best = i;
+      }
+    });
+    return best;
+  },
+
+  _heroHtml(c, idx) {
+    const cat = this._climbCategory(c);
+    const color = ChartView._catColor(cat);
+    return `<div class="day-hero" onclick="App._showClimbPopup(${idx})" style="--cat-color:${color}" title="Bekijk klimdetails">
+      <div class="day-hero-top">
+        <span class="day-hero-tag">👑 Koning van de dag</span>
+        ${cat ? `<span class="cat-badge cat-${cat}">${ChartView.catLabel(cat)}</span>` : ''}
+      </div>
+      <div class="day-hero-name">${c.colName || `Klim ${idx + 1}`}</div>
+      <div class="day-hero-stats">
+        <span><strong>${c.lengthKm.toFixed(1)}</strong> km</span>
+        <span><strong>${c.gain}</strong> hm</span>
+        <span><strong>${c.avgGrad}%</strong> gem.</span>
+        <span><strong>${c.maxGrad}%</strong> max</span>
+      </div>
+      <div id="day-hero-profile" class="day-hero-profile"></div>
+    </div>`;
+  },
+
   // Compact pill list — profiles live in the map popup
   _renderClimbs(namedClimbs) {
     const el = document.getElementById('day-climbs');
@@ -477,7 +597,10 @@ const App = {
       </button>`;
     }).join('');
 
-    el.innerHTML = `<div class="climbs-bar">
+    const qi = this._queenIdx(namedClimbs);
+    const heroHtml = qi >= 0 ? this._heroHtml(namedClimbs[qi], qi) : '';
+
+    el.innerHTML = heroHtml + `<div class="climbs-bar">
       <span class="climbs-bar-label">Klimmen</span>
       <div class="col-pills">${pills || '<span class="climbs-empty">Geen klimmen gedetecteerd</span>'}</div>
       <div class="climbs-bar-actions">
@@ -485,6 +608,8 @@ const App = {
         ${hasOverride ? `<button class="climb-action-btn" onclick="App._resetClimbs()" title="Terug naar automatisch gedetecteerd">↺ Auto</button>` : ''}
       </div>
     </div>`;
+
+    if (qi >= 0) ChartView.renderClimbProfile(document.getElementById('day-hero-profile'), namedClimbs[qi]);
   },
 
   _showClimbPopup(idx) {
@@ -503,6 +628,16 @@ const App = {
     const hasNext = idx < (this._namedClimbs?.length || 0) - 1;
     const autoCat = ChartView.categorize(c);
     const effCat  = this._climbCategory(c);
+    const savedNote = this._loadClimbNote(idx);
+
+    // C8: colour the popup accent + header chip by category
+    popup.style.setProperty('--cat-color', ChartView._catColor(effCat));
+    const chip = document.getElementById('popup-cat-chip');
+    if (chip) {
+      chip.textContent = effCat ? ChartView.catLabel(effCat) : '';
+      chip.className = 'popup-cat-chip' + (effCat ? ` cat-${effCat}` : ' hidden');
+    }
+
     document.getElementById('popup-stats').innerHTML = `
       <div class="popup-stat-row">
         <div class="popup-stat"><span class="pv">${c.lengthKm.toFixed(1)}</span><span class="pl">km</span></div>
@@ -545,6 +680,10 @@ const App = {
       <div id="popup-url-row" class="popup-geom-row hidden">
         <input id="popup-url-input" type="url" placeholder="https://www.cyclingcols.com/col/..." value="${c.colUrl || ''}" class="popup-url-input">
         <button class="popup-save-btn" onclick="App._saveClimbUrl(${idx})">Opslaan</button>
+      </div>
+      <div class="popup-note">
+        <label class="popup-note-label">📝 Notitie</label>
+        <textarea id="popup-note-input" class="popup-note-input" placeholder="bijv. café bovenaan, mooi uitzicht, lastige bocht..." oninput="App._saveClimbNote(${idx})">${savedNote}</textarea>
       </div>`;
 
     ChartView.renderClimbProfile(document.getElementById('popup-profile'), c);
@@ -575,6 +714,14 @@ const App = {
     MapView.updateClimbMarkerLabel(idx, name);
     // Refresh pills
     this._renderClimbs(this._namedClimbs);
+  },
+
+  _noteKey(idx) { return `note-${this.trip.year}-${this.currentDayIdx}-${this.routeType}-${idx}`; },
+  _loadClimbNote(idx) { return localStorage.getItem(this._noteKey(idx)) || ''; },
+  _saveClimbNote(idx) {
+    const v = document.getElementById('popup-note-input')?.value || '';
+    if (v.trim()) localStorage.setItem(this._noteKey(idx), v);
+    else localStorage.removeItem(this._noteKey(idx));
   },
 
   _toggleUrlEdit() {
@@ -662,6 +809,7 @@ const App = {
       if (gpx) {
         MapView.showRoute(gpx);
         MapView.showClimbMarkers(this._namedClimbs, gpx.points, idx => this._showClimbPopup(idx));
+        this._enableChartSync(gpx);
       }
       // Restore saved lunch marker for this day
       const saved = this._loadLunch(dayIdx);
@@ -689,6 +837,9 @@ const App = {
 
     // Lunch marker
     document.getElementById('btn-lunch').onclick = () => this._startLunchPlacement();
+
+    // Share day as image
+    document.getElementById('btn-share').onclick = () => this._shareDayImage();
 
     // GPX replace
     document.getElementById('btn-replace-gpx').onclick = () =>
@@ -736,6 +887,7 @@ const App = {
     if (gpx) {
       MapView.showRoute(gpx);
       MapView.showClimbMarkers(this._namedClimbs, gpx.points, idx => this._showClimbPopup(idx));
+      this._enableChartSync(gpx);
     }
     // Restore lunch if saved
     const lunch = this._loadLunch(this.currentDayIdx);
@@ -799,12 +951,65 @@ const App = {
       MapView._clearRoute();
       MapView.showRoute(gpx);
       MapView.showClimbMarkers(this._namedClimbs, gpx.points, idx => this._showClimbPopup(idx));
+      this._enableChartSync(gpx);
       const gpxEl = document.getElementById('day-gpx-upload');
       gpxEl.querySelector('.gpx-drop-zone p').textContent =
         `✅ GPX vervangen (${(gpx.totalDistM/1000).toFixed(1)} km, ${gpx.totalGain} hm)`;
       gpxEl.querySelector('.gpx-icon').textContent = '✅';
     };
     reader.readAsText(file);
+  },
+
+  // ─── SHARE DAY AS IMAGE ──────────────────────────────────────────────────
+
+  _shareDayImage() {
+    const day = this.trip.days[this.currentDayIdx];
+    const route = day[this.routeType === 'long' ? 'longRoute' : 'shortRoute'] || day.longRoute;
+    const chart = document.getElementById('altitude-chart');
+
+    const W = 1080, H = 620;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#1c1c1c'); bg.addColorStop(1, '#0b0b0b');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#FC4C02'; ctx.fillRect(0, 0, W, 8);
+
+    ctx.textBaseline = 'top';
+    ctx.font = 'bold 22px sans-serif'; ctx.fillStyle = '#FC4C02';
+    ctx.fillText(`${day.emoji} ${day.theme}${day.funName ? ' — ' + day.funName : ''}`, 40, 36);
+    ctx.font = 'bold 40px sans-serif'; ctx.fillStyle = '#fff';
+    ctx.fillText(this._truncate(ctx, route?.name || day.label, W - 80), 40, 72);
+
+    ctx.font = '600 23px sans-serif'; ctx.fillStyle = '#cccccc';
+    const stats = `${route?.km || 0} km    •    ${(route?.hm || 0).toLocaleString()} hm    •    ${route?.hmPerKm || 0} hm/km`;
+    ctx.fillText(stats, 40, 132);
+
+    const cw = W - 80, chH = 320, chY = 184;
+    ctx.fillStyle = '#141414'; ctx.fillRect(40, chY, cw, chH);
+    if (chart) { try { ctx.drawImage(chart, 40, chY, cw, chH); } catch (e) {} }
+
+    ctx.font = '600 18px sans-serif'; ctx.fillStyle = '#888';
+    ctx.fillText(`Fietsweek ${this.trip.year} — ${this.trip.destination}`, 40, H - 44);
+
+    cv.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dag-${day.dayNum}-${day.label}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  },
+
+  _truncate(ctx, text, maxW) {
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
   },
 
   // ─── SHARED ──────────────────────────────────────────────────────────────

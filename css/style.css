@@ -556,3 +556,108 @@ h3 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: upp
 ::-webkit-scrollbar-thumb:hover { background: #555; }
 
 .no-trips { color: var(--muted); text-align: center; padding: 40px; }
+
+/* ── Nav right cluster + theme ──────────────────────────── */
+.nav-right { display: flex; align-items: center; gap: 4px; }
+
+/* Light theme overrides */
+:root[data-theme="light"] {
+  --bg: #f4f5f7;
+  --bg2: #ffffff;
+  --bg3: #e9eaee;
+  --border: #d7d9df;
+  --text: #1b1d22;
+  --muted: #6a6e78;
+}
+:root[data-theme="light"] #nav { background: rgba(255,255,255,0.92); }
+html, body, .day-info-panel, .overview-left, .trip-card, .day-card, #nav {
+  transition: background-color .25s ease, color .25s ease, border-color .25s ease;
+}
+.screen.active { animation: screenFade .28s ease; }
+@keyframes screenFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ── Week climbing score (overview) ─────────────────────── */
+.week-score {
+  margin-top: 14px; padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(252,76,2,0.12), rgba(124,58,237,0.10));
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.week-score-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ws-pts { font-size: 1.9rem; font-weight: 800; color: var(--orange); line-height: 1; }
+.ws-pts-label { font-size: .82rem; color: var(--muted); }
+.week-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.week-badge {
+  display: inline-block; padding: 3px 9px; border-radius: 14px;
+  font-size: .74rem; font-weight: 800; color: #fff;
+}
+.week-badge.cat-HC { background: #7c3aed; }
+.week-badge.cat-1  { background: #dc2626; }
+.week-badge.cat-2  { background: #ea580c; }
+.week-badge.cat-3  { background: #ca8a04; }
+.week-badge.cat-4  { background: #16a34a; }
+
+.overview-hero-actions { margin-top: 14px; }
+
+/* ── Climb of the day (hero card) ───────────────────────── */
+.day-hero {
+  position: relative; margin-bottom: 14px; padding: 14px 16px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-left: 5px solid var(--cat-color, var(--orange));
+  border-radius: var(--radius); cursor: pointer; transition: transform .12s, box-shadow .15s;
+}
+.day-hero:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.25); }
+.day-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.day-hero-tag {
+  font-size: .72rem; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.day-hero-name { font-size: 1.25rem; font-weight: 800; margin: 4px 0 8px; color: var(--text); }
+.day-hero-stats { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; }
+.day-hero-stats span { font-size: .82rem; color: var(--muted); }
+.day-hero-stats strong { font-size: 1rem; color: var(--orange); font-weight: 800; }
+.day-hero-profile { border-radius: 6px; overflow: hidden; }
+
+/* ── Popup category chip + accent (C8) ──────────────────── */
+.climb-popup { border-top: 4px solid var(--cat-color, var(--orange)); }
+.popup-header-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.popup-cat-chip {
+  display: inline-block; padding: 2px 8px; border-radius: 5px;
+  font-size: .72rem; font-weight: 800; color: #fff; background: var(--cat-color, #6b7280);
+}
+.popup-cat-chip.hidden { display: none; }
+.popup-cat-chip.cat-HC { background: #7c3aed; }
+.popup-cat-chip.cat-1  { background: #dc2626; }
+.popup-cat-chip.cat-2  { background: #ea580c; }
+.popup-cat-chip.cat-3  { background: #ca8a04; }
+.popup-cat-chip.cat-4  { background: #16a34a; }
+
+/* ── Per-climb notes (D13) ──────────────────────────────── */
+.popup-note { margin: 8px 0 4px; }
+.popup-note-label {
+  display: block; font-size: .72rem; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px;
+}
+.popup-note-input {
+  width: 100%; min-height: 46px; resize: vertical;
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 6px 8px; font-size: .8rem; font-family: inherit;
+}
+.popup-note-input:focus { outline: none; border-color: var(--orange); }
+
+/* ── Print roadbook (C11) ───────────────────────────────── */
+@media print {
+  @page { margin: 14mm; }
+  #nav, .overview-map-wrap, .ov-map-controls, .overview-hero-actions,
+  #overview-history, .home-actions, .day-map-panel { display: none !important; }
+  html, body { height: auto; background: #fff; color: #000; font-size: 12px; }
+  #app { height: auto; overflow: visible; }
+  .screen { display: none !important; height: auto; overflow: visible; }
+  .screen.active { display: block !important; animation: none; }
+  .overview-layout, .day-layout { display: block; }
+  .overview-left { max-width: none; padding: 0; }
+  .overview-hero h1 { color: #000; }
+  .stat-pill, .week-score { color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .day-card, .day-hero { break-inside: avoid; page-break-inside: avoid; border-color: #bbb; }
+  .week-badge, .cat-badge, .col-pill-cat, .popup-cat-chip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { color: #000; text-decoration: none; }
+}

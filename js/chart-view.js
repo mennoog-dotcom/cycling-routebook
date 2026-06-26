@@ -171,6 +171,11 @@ const ChartView = {
       }
     } : null;
 
+    // Stash for external (map → chart) hover sync
+    this._labels = labels;
+    this._ptIndices = ptIndices;
+    this._pts = pts;
+
     const ctx = canvas.getContext('2d');
     const plugins = [this._komPlugin(komStart, komEnd)];
     if (climbs && climbs.length) plugins.push(this._climbLabelPlugin(climbs));
@@ -229,6 +234,29 @@ const ChartView = {
         }
       }
     });
+  },
+
+  // Highlight a point on the stage chart by distance (km) — used for map→chart hover sync
+  showHoverAtDistanceKm(km) {
+    const ch = this._chart;
+    if (!ch || km == null || !this._labels?.length) return;
+    let closest = 0, cd = Infinity;
+    for (let i = 0; i < this._labels.length; i++) {
+      const d = Math.abs(this._labels[i] - km);
+      if (d < cd) { cd = d; closest = i; }
+    }
+    const active = [{ datasetIndex: 0, index: closest }];
+    ch.setActiveElements(active);
+    if (ch.tooltip) ch.tooltip.setActiveElements(active, { x: 0, y: 0 });
+    ch.update('none');
+  },
+
+  clearHover() {
+    const ch = this._chart;
+    if (!ch) return;
+    ch.setActiveElements([]);
+    if (ch.tooltip) ch.tooltip.setActiveElements([], { x: 0, y: 0 });
+    ch.update('none');
   },
 
   // Render a climbfinder-style profile card for a single climb into `el` (DOM element)

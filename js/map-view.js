@@ -208,12 +208,19 @@ const MapView = {
 
     this.map.addSource('route-src', {
       type: 'geojson',
+      lineMetrics: true, // required for line-gradient (steepness colouring)
       data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
     });
     this.map.addLayer({ id: 'route-glow', type: 'line', source: 'route-src',
-      paint: { 'line-color': '#FC4C02', 'line-width': 10, 'line-opacity': 0.25, 'line-blur': 4 } });
+      paint: { 'line-color': '#FC4C02', 'line-width': 10, 'line-opacity': 0.22, 'line-blur': 4 } });
+
+    // Colour the line by gradient steepness (same scale as the altitude chart)
+    const gradPaint = this._gradientLinePaint(gpxData.points);
     this.map.addLayer({ id: 'route-line', type: 'line', source: 'route-src',
-      paint: { 'line-color': '#FC4C02', 'line-width': 3.5, 'line-opacity': 0.95 } });
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: gradPaint
+        ? { 'line-gradient': gradPaint, 'line-width': 4, 'line-opacity': 0.98 }
+        : { 'line-color': '#FC4C02', 'line-width': 3.5, 'line-opacity': 0.95 } });
 
     this.map.addSource('start-src', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: coords[0] } } });
     this.map.addSource('end-src',   { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: coords[coords.length - 1] } } });
@@ -308,6 +315,59 @@ const MapView = {
     } else if (trip) {
       this.map.flyTo({ center: trip.center, zoom: trip.defaultZoom, pitch: 55, bearing: -20, duration: 1000 });
     }
+  },
+
+  // Build a MapLibre line-gradient expression coloured by % gradient.
+  // Samples ~160 stops along the route using a 300 m gradient window.
+  _gradientLinePaint(pts) {
+    const total = pts[pts.length - 1]?.cumDist || 0;
+    if (total <= 0 || pts.length < 4) return null;
+    const N = Math.min(160, pts.length);
+    const expr = ['interpolate', ['linear'], ['line-progress']];
+    let lastFrac = -1;
+    for (let s = 0; s < N; s++) {
+      let frac = s / (N - 1);
+      if (frac <= lastFrac) frac = lastFrac + 1e-4; // keep strictly increasing
+      lastFrac = frac;
+      const targetDist = frac * total;
+      // nearest point index at/after targetDist
+      let i = Math.min(pts.length - 1, Math.round(frac * (pts.length - 1)));
+      while (i > 0 && pts[i].cumDist > targetDist) i--;
+      while (i < pts.length - 1 && pts[i].cumDist < targetDist) i++;
+      // gradient over a 300 m forward window
+      let j = i;
+      while (j < pts.length - 1 && pts[j].cumDist - pts[i].cumDist < 300) j++;
+      const d = pts[j].cumDist - pts[i].cumDist;
+      const g = d > 60 ? Math.max(0, (pts[j].ele - pts[i].ele) / d * 100) : 0;
+      expr.push(+frac.toFixed(5), ChartView._gradColor(g));
+    }
+    return expr;
+  },
+
+  // ── Map → chart hover sync ────────────────────────────────────────────────
+  // Highlights the altitude chart while the cursor moves over the route line.
+  enableChartSync(gpxData, onHoverKm) {
+    if (!this._ready || !this.map.getLayer('route-line')) return;
+    this.disableChartSync();
+    const pts = gpxData.points;
+    this._chartSyncMove = e => {
+      const ll = e.lngLat;
+      let best = 0, bd = Infinity;
+      for (let i = 0; i < pts.length; i += 2) {
+        const dx = pts[i].lng - ll.lng, dy = pts[i].lat - ll.lat;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = i; }
+      }
+      onHoverKm(pts[best].cumDist / 1000);
+    };
+    this._chartSyncLeave = () => onHoverKm(null);
+    this.map.on('mousemove', 'route-line', this._chartSyncMove);
+    this.map.on('mouseleave', 'route-line', this._chartSyncLeave);
+  },
+
+  disableChartSync() {
+    if (this._chartSyncMove) { try { this.map.off('mousemove', 'route-line', this._chartSyncMove); } catch(e) {} this._chartSyncMove = null; }
+    if (this._chartSyncLeave) { try { this.map.off('mouseleave', 'route-line', this._chartSyncLeave); } catch(e) {} this._chartSyncLeave = null; }
   },
 
   _bearing(from, to) {
