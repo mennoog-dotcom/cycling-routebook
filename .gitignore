@@ -1,0 +1,9 @@
+# Large binaries / presentations
+*.pptx
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

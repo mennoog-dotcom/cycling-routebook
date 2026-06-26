@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cycling Routebook</title>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <nav id="nav" class="hidden">
+    <button id="btn-back" class="nav-btn">← Terug</button>
+    <span id="nav-title">Cycling Routebook</span>
+    <button id="btn-home" class="nav-btn">⌂ Home</button>
+  </nav>
+
+  <div id="app">
+
+    <!-- ── HOME ─────────────────────────────────────────────── -->
+    <div id="screen-home" class="screen active">
+      <div class="home-hero">
+        <div class="home-hero-icon">🚴</div>
+        <h1>Cycling Routebook</h1>
+        <p>Het interactieve routeboek voor de jaarlijkse fietsweek</p>
+      </div>
+      <div id="trip-list" class="trip-list"></div>
+      <div class="home-actions">
+        <button id="btn-load-trip" class="btn-secondary">📁 Trip JSON laden</button>
+        <input type="file" id="file-trip" accept=".json" style="display:none">
+      </div>
+    </div>
+
+    <!-- ── OVERVIEW ──────────────────────────────────────────── -->
+    <div id="screen-overview" class="screen">
+      <div class="overview-layout">
+        <div class="overview-left">
+          <div class="overview-hero">
+            <h1 id="overview-title">Fietsweek 2025</h1>
+            <div id="overview-stats" class="overview-stats"></div>
+          </div>
+          <div id="overview-days" class="overview-days"></div>
+          <div id="overview-history" class="overview-history"></div>
+        </div>
+        <div class="overview-map-wrap">
+          <div id="overview-map"></div>
+          <div class="ov-map-controls">
+            <div class="route-toggle">
+              <button id="ov-btn-long"  class="toggle-btn active">Lang</button>
+              <button id="ov-btn-short" class="toggle-btn">Kort</button>
+            </div>
+            <button id="ov-btn-animate" class="map-action-btn">▶ Animeer week</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DAY ───────────────────────────────────────────────── -->
+    <div id="screen-day" class="screen">
+      <div class="day-layout">
+
+        <div class="day-map-panel">
+          <div id="day-map"></div>
+
+          <!-- Climb detail popup (shown when a summit marker is clicked) -->
+          <div id="climb-popup" class="climb-popup hidden">
+            <div class="climb-popup-header">
+              <div>
+                <span id="popup-col-name" class="popup-col-name"></span>
+                <button id="popup-edit-btn" class="popup-icon-btn" title="Naam aanpassen">✏️</button>
+              </div>
+              <button id="popup-close-btn" class="popup-close-btn">✕</button>
+            </div>
+            <div id="popup-edit-row" class="popup-edit-row hidden">
+              <input id="popup-name-input" class="popup-name-input" placeholder="Col naam..." />
+              <button id="popup-save-btn" class="popup-save-btn">Opslaan</button>
+            </div>
+            <div id="popup-stats" class="popup-stats"></div>
+            <div id="popup-legend" class="popup-legend"></div>
+            <div id="popup-profile" class="popup-profile"></div>
+          </div>
+
+          <div class="map-overlay-controls">
+            <div id="route-toggle" class="route-toggle">
+              <button id="btn-long" class="toggle-btn active">Lang</button>
+              <button id="btn-short" class="toggle-btn">Kort</button>
+            </div>
+            <div class="map-btns">
+              <button id="btn-animate" class="map-action-btn">▶ Animeer</button>
+              <button id="btn-reset-cam" class="map-action-btn">🎥 Reset</button>
+              <button id="btn-lunch" class="map-action-btn" title="Klik op kaart om lunchplek te plaatsen">🍽️ Lunch</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="day-info-panel">
+          <div id="day-header" class="day-header"></div>
+          <div id="day-stats" class="day-stats"></div>
+
+          <section class="day-section">
+            <h3>Hoogteprofiel</h3>
+            <div class="chart-wrap">
+              <canvas id="altitude-chart"></canvas>
+            </div>
+          </section>
+
+          <div id="day-climbs"></div>
+
+          <section class="day-section" id="day-gpx-upload">
+            <div class="gpx-section-header">
+              <h3>GPX bestand</h3>
+              <button id="btn-replace-gpx" class="btn-replace-gpx" title="Vervang huidig GPX bestand">↑ Vervang GPX</button>
+              <input type="file" id="file-replace-gpx" accept=".gpx" style="display:none">
+            </div>
+            <div id="gpx-drop-zone" class="gpx-drop-zone">
+              <div class="gpx-icon">📂</div>
+              <p>Sleep GPX bestand hierheen of klik om te uploaden</p>
+              <input type="file" id="file-gpx" accept=".gpx" style="display:none">
+            </div>
+          </section>
+
+          <div id="day-notes" class="day-notes"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="js/gpx-parser.js"></script>
+  <script src="js/chart-view.js"></script>
+  <script src="js/map-view.js"></script>
+  <!-- Add a new trip here each year: -->
+  <script src="trips/2025-annecy/trip.js"></script>
+  <script src="trips/2025-annecy/gpx-bundle.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
