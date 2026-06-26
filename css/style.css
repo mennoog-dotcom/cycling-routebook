@@ -661,3 +661,71 @@ html, body, .day-info-panel, .overview-left, .trip-card, .day-card, #nav {
   .week-badge, .cat-badge, .col-pill-cat, .popup-cat-chip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   a { color: #000; text-decoration: none; }
 }
+
+/* ── Mobile / tablet (single-column, touch-friendly) ────── */
+@media (max-width: 820px) {
+  /* Let each screen scroll naturally instead of locked 100vh columns */
+  .overview-layout,
+  .day-layout {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - var(--nav-h));
+  }
+
+  /* ── Overview: week list on top, map below ── */
+  .overview-left {
+    overflow: visible;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 18px 14px;
+  }
+  .overview-map-wrap {
+    height: 60vh;
+    min-height: 300px;
+  }
+
+  /* ── Day page: map on top, info below ── */
+  .day-map-panel {
+    height: 58vh;
+    min-height: 300px;
+  }
+  .day-info-panel {
+    overflow: visible;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 18px 14px;
+  }
+
+  /* Map control overlays: keep clear of edges, allow wrapping */
+  .map-overlay-controls,
+  .ov-map-controls {
+    bottom: 12px; left: 10px; right: 10px;
+  }
+  .map-btns { flex-wrap: wrap; }
+
+  /* Climb popup: span the width on narrow screens */
+  .climb-popup {
+    left: 8px; right: 8px; bottom: 12px;
+    width: auto;
+    max-height: 70vh;
+  }
+
+  /* Home screen breathing room */
+  #screen-home { padding: 24px 16px; }
+  .home-hero { margin-bottom: 28px; }
+  .home-hero-icon { font-size: 3rem; }
+  .home-hero h1 { font-size: 1.8rem; }
+
+  /* Slightly larger touch targets in the nav */
+  .nav-btn { padding: 8px 10px; }
+}
+
+/* Extra squeeze for phones */
+@media (max-width: 480px) {
+  .overview-map-wrap { height: 52vh; }
+  .day-map-panel { height: 52vh; }
+  .toggle-btn { padding: 7px 12px; font-size: .78rem; }
+  .map-action-btn { font-size: .78rem; }
+  .day-route-name { font-size: 1rem; }
+}
