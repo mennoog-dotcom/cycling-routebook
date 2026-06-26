@@ -228,9 +228,9 @@ window.TRIP_2025 = {
       { startDistKm: 70.759, endDistKm: 72.706, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
     ],
     "6-short": [
-      { startDistKm: 1.378,  endDistKm: 5.389,  colName: "Le Foux", colUrl: null, cat: null },
-      { startDistKm: 7.378,  endDistKm: 14.985, colName: "Col de la Croix Fry", colUrl: "https://www.cyclingcols.com/col/croix-fry", cat: null },
-      { startDistKm: 50.845, endDistKm: 52.791, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
+      { startDistKm: 1.378,  endDistKm: 5.317,  colName: "Le Foux", colUrl: null, cat: null },
+      { startDistKm: 7.332,  endDistKm: 14.985, colName: "Col de la Croix Fry", colUrl: "https://www.cyclingcols.com/col/croix-fry", cat: "1" },
+      { startDistKm: 50.845, endDistKm: 52.782, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
     ]
   },
 
