@@ -183,12 +183,12 @@ window.TRIP_2025 = {
   bakedClimbs: {
     "0-long": [
       { startDistKm: 1.295,  endDistKm: 5.314,  colName: "Le Foux", colUrl: null, cat: null },
-      { startDistKm: 7.395,  endDistKm: 12.579, colName: "Col de l'Aiquille", colUrl: null, cat: null },
-      { startDistKm: 24.192, endDistKm: 25.599, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
+      { startDistKm: 7.388,  endDistKm: 12.579, colName: "Col de l'Aiquille", colUrl: null, cat: null },
+      { startDistKm: 24.148, endDistKm: 25.599, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
     ],
     "1-long": [
-      { startDistKm: 13.362, endDistKm: 25.294, colName: "Col du Solaison", colUrl: "https://www.cyclingcols.com/col/solaison", cat: null },
-      { startDistKm: 33.993, endDistKm: 37.7,   colName: "Andey", colUrl: null, cat: null }
+      { startDistKm: 13.299, endDistKm: 25.256, colName: "Col du Solaison", colUrl: "https://www.cyclingcols.com/col/solaison", cat: null },
+      { startDistKm: 33.965, endDistKm: 37.7,   colName: "Andey", colUrl: null, cat: null }
     ],
     "2-long": [
       { startDistKm: 0.534,   endDistKm: 24.5,    colName: "Col des Saisies", colUrl: "https://www.cyclingcols.com/col/saisies", cat: null },
@@ -202,36 +202,80 @@ window.TRIP_2025 = {
       { startDistKm: 23.385, endDistKm: 28.997, colName: "Cormet de Roselend", colUrl: "https://www.cyclingcols.com/col/roselend", cat: null }
     ],
     "4-long": [
-      { startDistKm: 8.877,  endDistKm: 13.194, colName: "Col de l'Epine", colUrl: "https://www.cyclingcols.com/col/epine", cat: null },
-      { startDistKm: 24.666, endDistKm: 40.394, colName: "Col de l'Arpettaz", colUrl: "https://www.cyclingcols.com/col/arpettaz", cat: null },
-      { startDistKm: 66.494, endDistKm: 70.219, colName: "Col du Vorger", colUrl: "https://www.cyclingcols.com/col/vorger", cat: null },
-      { startDistKm: 75.194, endDistKm: 82.468, colName: "Col de Tamié", colUrl: "https://www.cyclingcols.com/col/tamie-collet", cat: null },
+      { startDistKm: 8.877,  endDistKm: 13.131, colName: "Col de l'Epine", colUrl: "https://www.cyclingcols.com/col/epine", cat: null },
+      { startDistKm: 24.614, endDistKm: 40.394, colName: "Col de l'Arpettaz", colUrl: "https://www.cyclingcols.com/col/arpettaz", cat: null },
+      { startDistKm: 66.494, endDistKm: 70.125, colName: "Col du Vorger", colUrl: "https://www.cyclingcols.com/col/vorger", cat: null },
+      { startDistKm: 75.161, endDistKm: 82.455, colName: "Col de Tamié", colUrl: "https://www.cyclingcols.com/col/tamie-collet", cat: null },
       { startDistKm: 95.981, endDistKm: 105.36, colName: "Col de Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
     ],
     "4-short": [
       { startDistKm: 8.877,  endDistKm: 12.462, colName: "Col de l'Épine", colUrl: "https://www.cyclingcols.com/col/epine", cat: null },
-      { startDistKm: 24.666, endDistKm: 40.394, colName: "Col de l'Arpettaz", colUrl: "https://www.cyclingcols.com/col/arpettaz", cat: null },
-      { startDistKm: 71.697, endDistKm: 81.292, colName: "Col du Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
+      { startDistKm: 24.614, endDistKm: 40.394, colName: "Col de l'Arpettaz", colUrl: "https://www.cyclingcols.com/col/arpettaz", cat: null },
+      { startDistKm: 71.693, endDistKm: 81.292, colName: "Col du Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
     ],
     "5-long": [
       { startDistKm: 30.95,  endDistKm: 47.91,   colName: "Col du Semnoz", colUrl: "https://www.cyclingcols.com/col/chatillon", cat: "HC" },
       { startDistKm: 92.295, endDistKm: 101.936, colName: "Col du Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
     ],
     "5-short": [
-      { startDistKm: 56.855, endDistKm: 66.626, colName: "Col du Marais", colUrl: null, cat: null },
-      { startDistKm: 70.392, endDistKm: 71.79,  colName: "Maison de Gierende Banden", colUrl: null, cat: null }
+      { startDistKm: 56.772, endDistKm: 66.626, colName: "Col du Marais", colUrl: null, cat: null },
+      { startDistKm: 70.348, endDistKm: 71.79,  colName: "Maison de Gierende Banden", colUrl: null, cat: null }
     ],
     "6-long": [
-      { startDistKm: 1.378,  endDistKm: 7.578,  colName: "Col de Plan Bois", colUrl: "https://www.cyclingcols.com/col/plan-bois", cat: null },
-      { startDistKm: 12.697, endDistKm: 20.395, colName: "Col de la Croix Fry", colUrl: "https://www.cyclingcols.com/col/croix-fry", cat: null },
+      { startDistKm: 1.378,  endDistKm: 7.537,  colName: "Col de Plan Bois", colUrl: "https://www.cyclingcols.com/col/plan-bois", cat: null },
+      { startDistKm: 12.682, endDistKm: 20.395, colName: "Col de la Croix Fry", colUrl: "https://www.cyclingcols.com/col/croix-fry", cat: null },
       { startDistKm: 38.397, endDistKm: 45.281, colName: "Col des Annes", colUrl: "https://www.cyclingcols.com/col/annes", cat: null },
-      { startDistKm: 70.759, endDistKm: 72.706, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
+      { startDistKm: 70.704, endDistKm: 72.706, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
     ],
     "6-short": [
       { startDistKm: 1.378,  endDistKm: 5.317,  colName: "Le Foux", colUrl: null, cat: null },
       { startDistKm: 7.332,  endDistKm: 14.985, colName: "Col de la Croix Fry", colUrl: "https://www.cyclingcols.com/col/croix-fry", cat: "1" },
       { startDistKm: 50.845, endDistKm: 52.782, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
     ]
+  },
+
+  bakedStage: {
+    "1-long": {
+      timedSegment: { name: "Col du Solaison", km: 12, gradient: 8.7, stravaUrl: "https://www.strava.com/segments/4282288", startDistKm: 13.299088772863584 },
+      coffee: { text: "Ergens op de berg met een rugtas vol snacks", mapsUrl: null }
+    },
+    "2-long": {
+      description: "This day takes you through some of the most breathtaking scenery the French Alps have to offer, linking four legendary climbs in one epic loop. The Col de Joly is one of the best-kept secrets in the northern Alps, rewarding you with up-close views of Mont Blanc from a quiet, traffic-free road. From there, the Col du Pré is the harder but far more rewarding way into the Cormet de Roselend - 15 hairpins in 7km with long sections over 10%, but with views that keep getting better with every bend. At the top, the turquoise waters of Lac de Roselend, its little chapel, and the surrounding mountain pastures make for one of the most exceptional scenes",
+      timedSegment: { name: "Col du Pré", km: 12.568474484171443, gradient: 7.6, stravaUrl: "https://www.strava.com/segments/39496167", startDistKm: 69.81136322576361 },
+      coffee: { text: "Bovenop col de Joly", mapsUrl: "https://maps.app.goo.gl/Cc66Q5jKCYsx4PaV6" }
+    },
+    "2-short": {
+      timedSegment: { name: "Col du Pré", startDistKm: 3.3769075832648676, km: 12.516708605401574, gradient: 7.8, stravaUrl: null }
+    },
+    "4-long": {
+      description: "Arpettaz is een absolute aanrader: rustig dorp uit, dan ineens een smalle bergweg omhoog door het bos die je nergens op voorbereidt. Tamié is de klassieke afsluiter met een abdij halverwege. Kleinere colletjes Vorger, Tamié & Marais als bonus.",
+      timedSegment: { name: "Col de l'Arpettaz", km: 14.5, gradient: 6.8, stravaUrl: "https://www.strava.com/segments/15792978", startDistKm: 9 }
+    },
+    "5-long": {
+      description: "Het mooiste meer van de Alpen als decor. Semnoz is het geheim van de regio: geen drukke toeristische col maar een lange klim door het bos met aan de top een panorama van 360°. Daarna afdaling langs het meer. Klassiek.",
+      coffee: { text: "Lunch in Annecy", mapsUrl: null }
+    },
+    "5-short": {
+      description: "Het mooiste meer van de Alpen als decor. Vanuit het huis richting Annecy en vervolgens via het fietspad langs de oevers richting de Col du Marais en huiswaarts. Trek nog even een sprintje voor de KOM van de dag op onze huisklim",
+      timedSegment: { name: "Maison de Gierende Banden", km: 1, gradient: 10.4, stravaUrl: "https://www.strava.com/segments/17783115", startDistKm: 70.34761673394826 },
+      coffee: { text: "Lunch in Annecy", mapsUrl: null }
+    },
+    "6-long": {
+      description: "Succesformule van vorige keer plus Plan Bois als nieuwe toevoeging. Croix Fry is een klassieker die je meermaals kunt rijden — altijd goed. Col des Annes is de kers op de taart: Steil, alpenweidje tussen de koeien",
+      timedSegment: { name: "Col des Annes", startDistKm: 38.39664008289146, km: 6.883974410691975, gradient: 9.1, stravaUrl: null },
+      coffee: { text: "Lunch in le grand Bornand met z'n allen", mapsUrl: null }
+    },
+    "6-short": {
+      description: "Via Col de la Croix Fry naar de lunch flaneren in le Grand Bornand en vervolgens via de vallei terug. ",
+      timedSegment: { name: "Col de la Croix Fry", km: 8.2, gradient: 7.2, stravaUrl: "https://www.strava.com/segments/629017", startDistKm: 7.331711172878551 },
+      coffee: { text: "Lunch in le Grand Bornand met z'n allen", mapsUrl: null }
+    }
+  },
+
+  bakedLunch: {
+    "2": [6.6735076904296875, 45.78165120756128],
+    "5": [6.129051446914673, 45.89824439654009],
+    "6": [6.426293849945068, 45.94163060716565]
   },
 
   history: [
