@@ -14,6 +14,8 @@ const MapView = {
   // Colours per day index (matches trip.days order)
   DAY_COLORS: ['#22c55e', '#3b82f6', '#FC4C02', null, '#a855f7', '#06b6d4', '#ec4899'],
 
+  _isMobile() { return typeof window !== 'undefined' && window.innerWidth <= 820; },
+
   init(containerId, center, zoom) {
     if (this.map) { this.map.remove(); this.map = null; }
     this._ready = false;
@@ -72,13 +74,17 @@ const MapView = {
         type: 'geojson',
         data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
       });
+      const ovW = this._isMobile() ? 4.5 : 3.5;
+      // White casing for contrast against terrain/roads
       this.map.addLayer({
         id: `${srcId}-glow`, type: 'line', source: srcId,
-        paint: { 'line-color': color, 'line-width': 8, 'line-opacity': 0.2, 'line-blur': 4 }
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#ffffff', 'line-width': ovW + 3, 'line-opacity': 0.65 }
       });
       this.map.addLayer({
         id: `${srcId}-line`, type: 'line', source: srcId,
-        paint: { 'line-color': color, 'line-width': 3, 'line-opacity': 0.9 }
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': color, 'line-width': ovW, 'line-opacity': 1 }
       });
 
       // Start dot
@@ -212,16 +218,23 @@ const MapView = {
       lineMetrics: true, // required for line-gradient (steepness colouring)
       data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
     });
+    const mob = this._isMobile();
+    const lineW = mob ? 6 : 4.5;
+    const caseW = lineW + 4;
+
+    // Dark casing beneath the coloured line so it stays legible on any basemap
+    // (especially the grey "flat" segments and on small phone screens).
     this.map.addLayer({ id: 'route-glow', type: 'line', source: 'route-src',
-      paint: { 'line-color': '#FC4C02', 'line-width': 10, 'line-opacity': 0.22, 'line-blur': 4 } });
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#0a0a0a', 'line-width': caseW, 'line-opacity': 0.55, 'line-blur': 0.5 } });
 
     // Colour the line by gradient steepness (same scale as the altitude chart)
     const gradPaint = this._gradientLinePaint(gpxData.points);
     this.map.addLayer({ id: 'route-line', type: 'line', source: 'route-src',
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: gradPaint
-        ? { 'line-gradient': gradPaint, 'line-width': 4, 'line-opacity': 0.98 }
-        : { 'line-color': '#FC4C02', 'line-width': 3.5, 'line-opacity': 0.95 } });
+        ? { 'line-gradient': gradPaint, 'line-width': lineW, 'line-opacity': 1 }
+        : { 'line-color': '#FC4C02', 'line-width': lineW, 'line-opacity': 1 } });
 
     this.map.addSource('start-src', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: coords[0] } } });
     this.map.addSource('end-src',   { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: coords[coords.length - 1] } } });

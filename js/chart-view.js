@@ -263,43 +263,79 @@ const ChartView = {
   renderClimbProfile(el, climb) {
     if (!climb.climbPts || !climb.gradProfile) { el.innerHTML = ''; return; }
 
-    const W = 300, H = 90, BAR_H = 28;
+    // climbfinder-style: the elevation area itself is filled with per-segment
+    // gradient colours, and each band carries a large, readable % label.
+    const W = 320, H = 150;
     const cpts = climb.climbPts;
     const minE = Math.min(...cpts.map(p => p.ele));
     const maxE = Math.max(...cpts.map(p => p.ele));
     const maxD = climb.lengthKm || 1;
     const eRange = maxE - minE || 1;
 
-    const x = d => (d / maxD * W).toFixed(1);
-    const y = e => (H - (e - minE) / eRange * H * 0.92).toFixed(1);
+    const x = d => +(d / maxD * W).toFixed(2);
+    const y = e => +(H - (e - minE) / eRange * H * 0.86 - 4).toFixed(2);
 
-    // Elevation silhouette path
+    // Elevation at any distance (linear interpolation between track points)
+    const eleAt = d => {
+      for (let i = 1; i < cpts.length; i++) {
+        if (cpts[i].distKm >= d) {
+          const a = cpts[i - 1], b = cpts[i];
+          const t = (d - a.distKm) / ((b.distKm - a.distKm) || 1);
+          return a.ele + (b.ele - a.ele) * t;
+        }
+      }
+      return cpts[cpts.length - 1].ele;
+    };
+
+    // Merge adjacent fine segments that share the same colour band into one
+    // wide band → far fewer, bigger, readable labels.
+    const bands = [];
+    climb.gradProfile.forEach(seg => {
+      const col = this._gradColor(seg.grad);
+      const last = bands[bands.length - 1];
+      if (last && last.col === col) {
+        last.endKm = seg.distKm + seg.widthKm;
+        last.gradSum += seg.grad * seg.widthKm;
+        last.widthKm += seg.widthKm;
+      } else {
+        bands.push({ col, startKm: seg.distKm, endKm: seg.distKm + seg.widthKm,
+                     widthKm: seg.widthKm, gradSum: seg.grad * seg.widthKm });
+      }
+    });
+    bands.forEach(b => b.grad = b.gradSum / (b.widthKm || 1));
+
+    // Elevation silhouette (used both as the line and as a clip for the colours)
     const linePts = cpts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.distKm)},${y(p.ele)}`).join(' ');
     const fillPath = `${linePts} L${W},${H} L0,${H} Z`;
+    const uid = 'cp' + Math.random().toString(36).slice(2, 8);
 
-    // Gradient bars
-    const bars = climb.gradProfile.map(seg => {
-      const bx = +(seg.distKm / maxD * W).toFixed(1);
-      const bw = Math.max(1.5, +(seg.widthKm / maxD * W).toFixed(1));
-      const col = this._gradColor(seg.grad);
-      const label = seg.grad >= 1 ? seg.grad.toFixed(1) + '%' : '';
-      const fontSize = bw > 22 ? 9 : (bw > 14 ? 8 : 0);
-      return `<rect x="${bx}" y="0" width="${bw}" height="${BAR_H}" fill="${col}"/>` +
-        (fontSize ? `<text x="${bx + bw / 2}" y="${BAR_H - 7}" text-anchor="middle" font-size="${fontSize}" fill="#fff" font-weight="bold">${label}</text>` : '');
+    // Colour bands clipped to the area under the elevation line
+    const fills = bands.map(b => {
+      const bx = x(b.startKm), bw = Math.max(0.5, x(b.endKm) - x(b.startKm));
+      return `<rect x="${bx}" y="0" width="${bw}" height="${H}" fill="${b.col}"/>`;
     }).join('');
 
-    // Elevation labels
-    const startLabel = `${climb.startEle}m`;
-    const topLabel   = `${climb.endEle}m`;
+    // Percentage labels, centred in the coloured fill of each band
+    const labels = bands.map(b => {
+      const bx = x(b.startKm), bw = x(b.endKm) - x(b.startKm);
+      if (bw < 18) return '';
+      const midKm = (b.startKm + b.endKm) / 2;
+      const cx = bx + bw / 2;
+      const cy = (y(eleAt(midKm)) + H) / 2 + 4;
+      const fs = bw > 46 ? 15 : (bw > 30 ? 13 : 11);
+      return `<text x="${cx}" y="${cy}" text-anchor="middle" font-size="${fs}" font-weight="800"
+        fill="#fff" stroke="rgba(0,0,0,0.45)" stroke-width="2.2" paint-order="stroke"
+        font-family="sans-serif">${Math.round(b.grad)}%</text>`;
+    }).join('');
 
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H + BAR_H + 4}" width="100%" style="display:block;border-radius:6px;overflow:hidden">
-      <g transform="translate(0,${BAR_H + 2})">
-        <rect width="${W}" height="${H}" fill="#141414"/>
-        <path d="${fillPath}" fill="rgba(252,76,2,0.18)" stroke="#FC4C02" stroke-width="1.8"/>
-        <text x="3" y="${H - 4}" font-size="9" fill="#aaa" font-family="sans-serif">${startLabel}</text>
-        <text x="${W - 3}" y="12" font-size="9" fill="#aaa" font-family="sans-serif" text-anchor="end">${topLabel}</text>
-      </g>
-      <g>${bars}</g>
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;border-radius:6px;overflow:hidden">
+      <defs><clipPath id="${uid}"><path d="${fillPath}"/></clipPath></defs>
+      <rect width="${W}" height="${H}" fill="#1a1a1a"/>
+      <g clip-path="url(#${uid})">${fills}</g>
+      <path d="${linePts}" fill="none" stroke="#0a0a0a" stroke-width="2.5" stroke-linejoin="round"/>
+      <text x="4" y="${H - 5}" font-size="10" fill="#ddd" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="sans-serif">${climb.startEle}m</text>
+      <text x="${W - 4}" y="13" font-size="10" fill="#ddd" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="sans-serif" text-anchor="end">${climb.endEle}m</text>
+      <g>${labels}</g>
     </svg>`;
   },
 
