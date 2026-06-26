@@ -162,8 +162,8 @@ const App = {
     let defs = null;
     try { const d = JSON.parse(raw); if (Array.isArray(d)) defs = d; } catch (e) {}
     if (!defs) {
-      const route = this.trip.days[dayIdx]?.[routeType === 'long' ? 'longRoute' : 'shortRoute'];
-      if (Array.isArray(route?.bakedClimbs)) defs = route.bakedClimbs;
+      const baked = this.trip.bakedClimbs?.[`${dayIdx}-${routeType}`];
+      if (Array.isArray(baked)) defs = baked;
     }
     if (defs) {
       return defs.map(def => {
@@ -443,8 +443,7 @@ const App = {
 
   // Baked climb defs for the current day/route (permanent, committed in trip.js)
   _bakedClimbDefs() {
-    const route = this.trip.days[this.currentDayIdx]?.[this.routeType === 'long' ? 'longRoute' : 'shortRoute'];
-    const b = route?.bakedClimbs;
+    const b = this.trip.bakedClimbs?.[`${this.currentDayIdx}-${this.routeType}`];
     return Array.isArray(b) ? b : null;
   },
 

@@ -19,11 +19,6 @@ window.TRIP_2025 = {
         gpxFile: "day1-long.gpx",
         cols: [
           { name: "Aiguille (lokale klim)", summitEle: 1350, cyclingcolsUrl: null }
-        ],
-        bakedClimbs: [
-          { startDistKm: 1.295,  endDistKm: 5.241,  colName: "Le Foux", colUrl: null, cat: null },
-          { startDistKm: 7.395,  endDistKm: 12.579, colName: "Col de l'Aiquille", colUrl: null, cat: null },
-          { startDistKm: 24.192, endDistKm: 25.599, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
         ]
       },
       shortRoute: null,
@@ -44,10 +39,6 @@ window.TRIP_2025 = {
         gpxFile: "day2-long.gpx",
         cols: [
           { name: "Col du Solaison", summitEle: 1463, cyclingcolsUrl: "https://www.cyclingcols.com/col/solaison" }
-        ],
-        bakedClimbs: [
-          { startDistKm: 13.362, endDistKm: 25.294, colName: "Col du Solaison", colUrl: "https://www.cyclingcols.com/col/solaison", cat: null },
-          { startDistKm: 33.993, endDistKm: 37.7,   colName: "Andey", colUrl: null, cat: null }
         ]
       },
       shortRoute: null,
@@ -71,13 +62,6 @@ window.TRIP_2025 = {
           { name: "Col de Joly",          summitEle: 1989, cyclingcolsUrl: "https://www.cyclingcols.com/col/joly" },
           { name: "Col du Pré",           summitEle: 1703, cyclingcolsUrl: "https://www.cyclingcols.com/col/pre" },
           { name: "Cormet de Roselend",   summitEle: 1967, cyclingcolsUrl: "https://www.cyclingcols.com/col/roselend" }
-        ],
-        bakedClimbs: [
-          { startDistKm: 0.586,   endDistKm: 24.5,    colName: "Col des Saisies", colUrl: "https://www.cyclingcols.com/col/saisies", cat: null },
-          { startDistKm: 36.876,  endDistKm: 47.72,   colName: "Col de Joly", colUrl: null, cat: null },
-          { startDistKm: 69.849,  endDistKm: 82.38,   colName: "Col du Pré", colUrl: "https://www.cyclingcols.com/col/pre", cat: null },
-          { startDistKm: 89.952,  endDistKm: 95.591,  colName: "Cormet de Roselend", colUrl: "https://www.cyclingcols.com/col/joly", cat: null },
-          { startDistKm: 126.157, endDistKm: 129.862, colName: "Queige", colUrl: null, cat: null }
         ]
       },
       shortRoute: {
@@ -119,13 +103,6 @@ window.TRIP_2025 = {
           { name: "Col de l'Arpettaz", summitEle: 1472, cyclingcolsUrl: "https://www.cyclingcols.com/col/arpettaz" },
           { name: "Col du Vorger",      summitEle: 1066, cyclingcolsUrl: "https://www.cyclingcols.com/col/vorger" },
           { name: "Col de Tamié",       summitEle:  907, cyclingcolsUrl: "https://www.cyclingcols.com/col/tamie" }
-        ],
-        bakedClimbs: [
-          { startDistKm: 8.877,  endDistKm: 13.194, colName: "Col de Tamié", colUrl: "https://www.cyclingcols.com/col/tamie", cat: null },
-          { startDistKm: 24.731, endDistKm: 40.195, colName: "Col de l'Arpettaz", colUrl: "https://www.cyclingcols.com/col/arpettaz", cat: null },
-          { startDistKm: 66.459, endDistKm: 69.874, colName: "Col du Vorger", colUrl: null, cat: null },
-          { startDistKm: 75.194, endDistKm: 82.468, colName: "Col de l'Epine", colUrl: "https://www.cyclingcols.com/col/vorger", cat: null },
-          { startDistKm: 95.981, endDistKm: 99.967, colName: "Col de Marais", colUrl: null, cat: null }
         ]
       },
       shortRoute: {
@@ -155,10 +132,6 @@ window.TRIP_2025 = {
         gpxFile: "day6-long.gpx",
         cols: [
           { name: "Col du Semnoz", summitEle: 1704, cyclingcolsUrl: "https://www.cyclingcols.com/col/chatillon" }
-        ],
-        bakedClimbs: [
-          { startDistKm: 30.967, endDistKm: 47.929, colName: "Col du Semnoz", colUrl: "https://www.cyclingcols.com/col/chatillon", cat: null },
-          { startDistKm: 92.378, endDistKm: 96.364, colName: "Col du Marais", colUrl: null, cat: null }
         ]
       },
       shortRoute: {
@@ -187,12 +160,6 @@ window.TRIP_2025 = {
           { name: "Col de Plan Bois",    summitEle: 1299, cyclingcolsUrl: "https://www.cyclingcols.com/col/plan-bois" },
           { name: "Col de la Croix Fry", summitEle: 1477, cyclingcolsUrl: "https://www.cyclingcols.com/col/croix-fry" },
           { name: "Col des Annes",       summitEle: 1564, cyclingcolsUrl: "https://www.cyclingcols.com/col/annes" }
-        ],
-        bakedClimbs: [
-          { startDistKm: 1.378,  endDistKm: 7.578,  colName: "Col de Plan Bois", colUrl: "https://www.cyclingcols.com/col/plan-bois", cat: null },
-          { startDistKm: 12.697, endDistKm: 20.395, colName: "Col de la Croix Fry", colUrl: "https://www.cyclingcols.com/col/croix-fry", cat: null },
-          { startDistKm: 38.397, endDistKm: 45.281, colName: "Col des Annes", colUrl: "https://www.cyclingcols.com/col/annes", cat: null },
-          { startDistKm: 70.759, endDistKm: 72.706, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
         ]
       },
       shortRoute: {
@@ -209,6 +176,63 @@ window.TRIP_2025 = {
       comments: "Succesformule vorige keer + Plan Bois (vorige keer overgeslagen)."
     }
   ],
+
+  // Permanent, committed climb edits (deletions, names, links, categories).
+  // Keyed by "<dayIndex>-<routeType>". Generated by the "Bak klim-edits in"
+  // button — to update, replace this object with the exported JSON.
+  bakedClimbs: {
+    "0-long": [
+      { startDistKm: 1.295,  endDistKm: 5.314,  colName: "Le Foux", colUrl: null, cat: null },
+      { startDistKm: 7.395,  endDistKm: 12.579, colName: "Col de l'Aiquille", colUrl: null, cat: null },
+      { startDistKm: 24.192, endDistKm: 25.599, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
+    ],
+    "1-long": [
+      { startDistKm: 13.362, endDistKm: 25.294, colName: "Col du Solaison", colUrl: "https://www.cyclingcols.com/col/solaison", cat: null },
+      { startDistKm: 33.993, endDistKm: 37.7,   colName: "Andey", colUrl: null, cat: null }
+    ],
+    "2-long": [
+      { startDistKm: 0.586,   endDistKm: 24.5,    colName: "Col des Saisies", colUrl: "https://www.cyclingcols.com/col/saisies", cat: null },
+      { startDistKm: 36.876,  endDistKm: 47.72,   colName: "Col de Joly", colUrl: "https://www.cyclingcols.com/col/joly", cat: null },
+      { startDistKm: 69.849,  endDistKm: 82.38,   colName: "Col du Pré", colUrl: "https://www.cyclingcols.com/col/pre", cat: null },
+      { startDistKm: 89.952,  endDistKm: 95.591,  colName: "Cormet de Roselend", colUrl: "https://www.cyclingcols.com/col/roselend", cat: null },
+      { startDistKm: 126.157, endDistKm: 129.862, colName: "Queige", colUrl: "https://www.cyclingcols.com/col/forclaz-savoie", cat: null }
+    ],
+    "2-short": [
+      { startDistKm: 3.396,  endDistKm: 15.894, colName: "Col du Pré", colUrl: "https://www.cyclingcols.com/col/pre", cat: null },
+      { startDistKm: 23.385, endDistKm: 28.997, colName: "Cormet de Roselend", colUrl: "https://www.cyclingcols.com/col/roselend", cat: null }
+    ],
+    "4-long": [
+      { startDistKm: 8.877,  endDistKm: 13.194, colName: "Col de l'Epine", colUrl: "https://www.cyclingcols.com/col/tamie", cat: null },
+      { startDistKm: 24.666, endDistKm: 40.394, colName: "Col de l'Arpettaz", colUrl: "https://www.cyclingcols.com/col/arpettaz", cat: null },
+      { startDistKm: 66.494, endDistKm: 70.219, colName: "Col du Vorger", colUrl: "https://www.cyclingcols.com/col/vorger", cat: null },
+      { startDistKm: 75.194, endDistKm: 82.468, colName: "Col de Tamié", colUrl: "https://www.cyclingcols.com/col/tamie-collet", cat: null },
+      { startDistKm: 95.981, endDistKm: 105.36, colName: "Col de Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
+    ],
+    "4-short": [
+      { startDistKm: 8.877,  endDistKm: 12.462, colName: "Col de l'Épine", colUrl: null, cat: null },
+      { startDistKm: 24.666, endDistKm: 40.394, colName: "Col de l'Arpettaz", colUrl: "https://www.cyclingcols.com/col/arpettaz", cat: null },
+      { startDistKm: 71.697, endDistKm: 81.292, colName: "Col du Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
+    ],
+    "5-long": [
+      { startDistKm: 30.967, endDistKm: 47.929,  colName: "Col du Semnoz", colUrl: "https://www.cyclingcols.com/col/chatillon", cat: null },
+      { startDistKm: 92.378, endDistKm: 101.975, colName: "Col du Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
+    ],
+    "5-short": [
+      { startDistKm: 56.855, endDistKm: 66.626, colName: "Col du Marais", colUrl: null, cat: null },
+      { startDistKm: 70.392, endDistKm: 71.79,  colName: "Maison de Gierende Banden", colUrl: null, cat: null }
+    ],
+    "6-long": [
+      { startDistKm: 1.378,  endDistKm: 7.578,  colName: "Col de Plan Bois", colUrl: "https://www.cyclingcols.com/col/plan-bois", cat: null },
+      { startDistKm: 12.697, endDistKm: 20.395, colName: "Col de la Croix Fry", colUrl: "https://www.cyclingcols.com/col/croix-fry", cat: null },
+      { startDistKm: 38.397, endDistKm: 45.281, colName: "Col des Annes", colUrl: "https://www.cyclingcols.com/col/annes", cat: null },
+      { startDistKm: 70.759, endDistKm: 72.706, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
+    ],
+    "6-short": [
+      { startDistKm: 1.378,  endDistKm: 5.389,  colName: "Le Foux", colUrl: null, cat: null },
+      { startDistKm: 7.378,  endDistKm: 14.985, colName: "Col de la Croix Fry", colUrl: "https://www.cyclingcols.com/col/croix-fry", cat: null },
+      { startDistKm: 50.845, endDistKm: 52.791, colName: "Maison de Gierende Banden", colUrl: null, cat: null }
+    ]
+  },
 
   history: [
     { year: 2025, destination: "Haute-Savoie", kmLong: 500.93, hmLong: 14156, hmPerKmLong: 26, duurLong: "22.8 uur", days: 5, kmShort: 327, hmShort: 6323 },
