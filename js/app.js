@@ -142,6 +142,9 @@ const App = {
     const printBtn = document.getElementById('btn-print');
     if (printBtn) printBtn.onclick = () => window.print();
 
+    const bakeBtn = document.getElementById('btn-bake');
+    if (bakeBtn) bakeBtn.onclick = () => this._exportBakedClimbs();
+
     // Map: init then show all routes
     this.overviewRouteType = 'long';
     MapView.init('overview-map', this.trip.center, this.trip.defaultZoom);
@@ -158,10 +161,14 @@ const App = {
     const raw = localStorage.getItem(`climbs-${this.trip.year}-${dayIdx}-${routeType}`);
     let defs = null;
     try { const d = JSON.parse(raw); if (Array.isArray(d)) defs = d; } catch (e) {}
+    if (!defs) {
+      const route = this.trip.days[dayIdx]?.[routeType === 'long' ? 'longRoute' : 'shortRoute'];
+      if (Array.isArray(route?.bakedClimbs)) defs = route.bakedClimbs;
+    }
     if (defs) {
       return defs.map(def => {
         const cl = GPXParser.buildClimbFromDist(gpx.points, def.startDistKm, def.endDistKm);
-        return { ...cl, cat: def.cat || null };
+        return { ...cl, colName: def.colName || null, cat: def.cat || null };
       });
     }
     return gpx.climbs.map((c, idx) => {
@@ -434,10 +441,18 @@ const App = {
     }));
   },
 
-  // Effective climbs for current day/route: override if present, else auto-detect + match
+  // Baked climb defs for the current day/route (permanent, committed in trip.js)
+  _bakedClimbDefs() {
+    const route = this.trip.days[this.currentDayIdx]?.[this.routeType === 'long' ? 'longRoute' : 'shortRoute'];
+    const b = route?.bakedClimbs;
+    return Array.isArray(b) ? b : null;
+  },
+
+  // Effective climbs for current day/route.
+  // Priority: personal localStorage override → baked trip.js climbs → auto-detect + match.
   _computeClimbs(gpx) {
     if (!gpx) return [];
-    const defs = this._loadClimbDefs();
+    const defs = this._loadClimbDefs() || this._bakedClimbDefs();
     if (defs) {
       return defs.map(def => {
         const climb = GPXParser.buildClimbFromDist(gpx.points, def.startDistKm, def.endDistKm);
@@ -445,6 +460,58 @@ const App = {
       });
     }
     return this._getNamedClimbs(gpx.climbs);
+  },
+
+  // Export every route the user has actually edited into a JSON file that can be
+  // baked into trip.js (so the data is permanent and identical for everyone).
+  _exportBakedClimbs() {
+    const out = {};
+    const saveDay = this.currentDayIdx, saveRt = this.routeType;
+    let edited = 0;
+    this.trip.days.forEach((day, di) => {
+      ['long', 'short'].forEach(rt => {
+        const key = `${di}-${rt}`;
+        const gpx = this.gpxCache[key];
+        if (!gpx) return;
+        this.currentDayIdx = di; this.routeType = rt;
+        const climbs = this._computeClimbs(gpx);
+        const hasEdits = !!localStorage.getItem(this._climbsOverrideKey()) ||
+          climbs.some((c, idx) =>
+            localStorage.getItem(this._climbKey(idx)) ||
+            localStorage.getItem(this._colUrlKey(idx)) ||
+            localStorage.getItem(this._colCatKey(idx)) ||
+            localStorage.getItem(this._noteKey(idx)));
+        if (!hasEdits) return;
+        edited++;
+        out[key] = climbs.map((c, idx) => {
+          const def = {
+            startDistKm: +c.startDistKm.toFixed(3),
+            endDistKm: +c.endDistKm.toFixed(3),
+            colName: c.colName || null,
+            colUrl: c.colUrl || null,
+            cat: c.cat || null
+          };
+          const note = this._loadClimbNote(idx);
+          if (note) def.note = note;
+          return def;
+        });
+      });
+    });
+    this.currentDayIdx = saveDay; this.routeType = saveRt;
+
+    if (!edited) {
+      alert('Geen klim-aanpassingen gevonden om te bakken.');
+      return;
+    }
+    const json = JSON.stringify(out, null, 2);
+    console.log('[bake] klim-edits:\n' + json);
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `klim-bake-${this.trip.year}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    alert(`${edited} route(s) met aanpassingen geëxporteerd naar Downloads als klim-bake-${this.trip.year}.json.`);
   },
 
   // Apply an edit to the climb definitions, persist, and refresh pills + markers
