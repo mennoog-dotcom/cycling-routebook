@@ -261,7 +261,13 @@ const ChartView = {
 
   // Render a climbfinder-style profile card for a single climb into `el` (DOM element)
   renderClimbProfile(el, climb) {
-    if (!climb.climbPts || !climb.gradProfile) { el.innerHTML = ''; return; }
+    el.innerHTML = this.climbProfileSVG(climb);
+  },
+
+  // Build the climb profile as a standalone SVG string (reused by the popup,
+  // the hero card and the printable roadbook).
+  climbProfileSVG(climb) {
+    if (!climb || !climb.climbPts || !climb.gradProfile) return '';
 
     // cyclingcols-style: fixed per-kilometre bars, each coloured by that km's
     // AVERAGE gradient with one clean number, plus the elevation silhouette and
@@ -337,7 +343,7 @@ const ChartView = {
     ticks += `<text x="${W - 2}" y="${H + AX - 4}" text-anchor="end" font-size="9"
       fill="#888" font-family="sans-serif">${maxD.toFixed(1)} km</text>`;
 
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H + AX}" width="100%" style="display:block;border-radius:6px;overflow:hidden">
+    return `<svg viewBox="0 0 ${W} ${H + AX}" width="100%" style="display:block;border-radius:6px;overflow:hidden">
       <defs><clipPath id="${uid}"><path d="${fillPath}"/></clipPath></defs>
       <rect width="${W}" height="${H}" fill="#1a1a1a"/>
       <g clip-path="url(#${uid})">${fills}${seps}</g>
@@ -345,6 +351,91 @@ const ChartView = {
       <text x="4" y="${H - 5}" font-size="10" fill="#eee" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="sans-serif">${climb.startEle}m</text>
       <text x="${W - 4}" y="13" font-size="10" fill="#eee" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="sans-serif" text-anchor="end">${climb.endEle}m</text>
       <g>${labels}</g>
+      <g>${ticks}</g>
+    </svg>`;
+  },
+
+  // Build a full-stage elevation profile as an SVG string for the printable
+  // roadbook: gradient-coloured silhouette + climb category markers + km axis.
+  stageProfileSVG(gpx, climbs, opts = {}) {
+    if (!gpx || !gpx.points || gpx.points.length < 4) return '';
+    const W = opts.width || 1000, H = opts.height || 230, AX = 26;
+    const pts = gpx.points;
+    const totalKm = (pts[pts.length - 1].cumDist || 0) / 1000 || 1;
+    const minE = Math.min(...pts.map(p => p.ele));
+    const maxE = Math.max(...pts.map(p => p.ele));
+    const eRange = maxE - minE || 1;
+
+    const x = km => +(km / totalKm * W).toFixed(2);
+    const y = e => +(H - (e - minE) / eRange * (H - 22) - 8).toFixed(2);
+
+    // Elevation silhouette (also the clip mask for the colour fills)
+    const step = Math.max(1, Math.floor(pts.length / 700));
+    let linePts = '';
+    for (let i = 0; i < pts.length; i += step) {
+      linePts += `${i === 0 ? 'M' : 'L'}${x(pts[i].cumDist / 1000)},${y(pts[i].ele)} `;
+    }
+    linePts += `L${x(pts[pts.length - 1].cumDist / 1000)},${y(pts[pts.length - 1].ele)}`;
+    const fillPath = `${linePts} L${W},${H} L0,${H} Z`;
+    const uid = 'sp' + Math.random().toString(36).slice(2, 8);
+
+    // Sample the route into colour columns by local gradient (300 m window)
+    const N = Math.min(420, Math.floor(pts.length / 2) || 1);
+    let fills = '';
+    for (let s = 0; s < N; s++) {
+      const d0 = s / N * totalKm, d1 = (s + 1) / N * totalKm;
+      // gradient over this column
+      const tgt0 = d0 * 1000, tgt1 = Math.max(tgt0 + 300, d1 * 1000);
+      let i = 0; while (i < pts.length - 1 && pts[i].cumDist < tgt0) i++;
+      let j = i; while (j < pts.length - 1 && pts[j].cumDist < tgt1) j++;
+      const dd = pts[j].cumDist - pts[i].cumDist;
+      const g = dd > 60 ? Math.max(0, (pts[j].ele - pts[i].ele) / dd * 100) : 0;
+      const bx = x(d0), bw = Math.max(0.6, x(d1) - x(d0));
+      fills += `<rect x="${bx}" y="0" width="${bw + 0.5}" height="${H}" fill="${this._gradColor(g)}"/>`;
+    }
+
+    // Climb markers: shaded ascent span + category badge + name at the summit
+    let marks = '';
+    (climbs || []).forEach(c => {
+      const cat = (typeof App !== 'undefined' && App._climbCategory) ? App._climbCategory(c) : this.categorize(c);
+      if (c.startDistKm == null || c.endDistKm == null) return;
+      const sx = x(c.startDistKm), ex = x(c.endDistKm);
+      marks += `<rect x="${sx}" y="0" width="${Math.max(1, ex - sx)}" height="${H}" fill="rgba(255,255,255,0.08)"/>`;
+      const summitY = y(c.endEle);
+      marks += `<line x1="${ex}" y1="${summitY}" x2="${ex}" y2="${H}" stroke="rgba(255,255,255,0.35)" stroke-width="1" stroke-dasharray="3 3"/>`;
+      const col = this._catColor(cat);
+      const name = (c.colName || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const label = (cat ? cat + '  ' : '') + name;
+      if (label.trim()) {
+        const tw = label.length * 6.2 + 10;
+        let lx = ex - tw / 2;
+        lx = Math.max(2, Math.min(lx, W - tw - 2));
+        const ly = Math.max(13, summitY - 16);
+        marks += `<g>
+          <rect x="${lx}" y="${ly - 11}" width="${tw}" height="15" rx="3" fill="${cat ? col : '#374151'}" opacity="0.95"/>
+          <text x="${lx + tw / 2}" y="${ly}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff" font-family="sans-serif">${label}</text>
+        </g>`;
+      }
+      marks += `<circle cx="${ex}" cy="${summitY}" r="3.2" fill="${cat ? col : '#9ca3af'}" stroke="#fff" stroke-width="1"/>`;
+    });
+
+    // Distance axis
+    const tickStep = totalKm > 80 ? 20 : (totalKm > 40 ? 10 : (totalKm > 16 ? 5 : 2));
+    let ticks = '';
+    for (let d = tickStep; d < totalKm - 0.1; d += tickStep) {
+      ticks += `<line x1="${x(d)}" y1="${H}" x2="${x(d)}" y2="${H + 4}" stroke="#888" stroke-width="1"/>
+        <text x="${x(d)}" y="${H + AX - 8}" text-anchor="middle" font-size="10" fill="#aaa" font-family="sans-serif">${d}</text>`;
+    }
+    ticks += `<text x="${W - 2}" y="${H + AX - 8}" text-anchor="end" font-size="10" fill="#aaa" font-family="sans-serif">${totalKm.toFixed(1)} km</text>`;
+
+    return `<svg viewBox="0 0 ${W} ${H + AX}" width="100%" preserveAspectRatio="none" style="display:block">
+      <defs><clipPath id="${uid}"><path d="${fillPath}"/></clipPath></defs>
+      <rect width="${W}" height="${H}" fill="#1a1a1a"/>
+      <g clip-path="url(#${uid})">${fills}</g>
+      <path d="${linePts}" fill="none" stroke="#0a0a0a" stroke-width="2" stroke-linejoin="round"/>
+      <g>${marks}</g>
+      <text x="4" y="${H - 5}" font-size="11" fill="#eee" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="sans-serif">${Math.round(pts[0].ele)}m</text>
+      <text x="${W - 4}" y="14" font-size="11" fill="#eee" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="sans-serif" text-anchor="end">${maxE}m</text>
       <g>${ticks}</g>
     </svg>`;
   },

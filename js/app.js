@@ -162,7 +162,7 @@ const App = {
     this._renderGpxDownloadHelper();
 
     const printBtn = document.getElementById('btn-print');
-    if (printBtn) printBtn.onclick = () => window.print();
+    if (printBtn) printBtn.onclick = () => this._printRoadbook();
 
     const bakeBtn = document.getElementById('btn-bake');
     if (bakeBtn) bakeBtn.onclick = () => this._exportBakedClimbs();
@@ -289,6 +289,196 @@ const App = {
       <p class="gpx-dl-hint">Log eerst in op Strava, klik dan ↓ GPX, sleep daarna het bestand naar de routepagina.</p>
       <div class="gpx-dl-list">${links}</div>`;
   },
+
+  // ─── PRINTABLE ROADBOOK (A3 landscape) ───────────────────────────────────
+
+  _esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  },
+
+  // Compute named climbs (with profiles, honouring overrides/baked edits) for
+  // an arbitrary day/route without disturbing the currently open day.
+  _climbsForPrint(dayIdx, routeType, gpx) {
+    const sd = this.currentDayIdx, st = this.routeType;
+    this.currentDayIdx = dayIdx; this.routeType = routeType;
+    let climbs = [];
+    try { climbs = this._computeClimbs(gpx) || []; } catch (e) {}
+    this.currentDayIdx = sd; this.routeType = st;
+    return climbs;
+  },
+
+  async _printRoadbook() {
+    const overlay = this._showPrintOverlay('Roadbook voorbereiden… kaart van de week renderen');
+    try {
+      const pages = [];
+
+      // 1) Overview page (week map + summary)
+      const ovImg = await MapView.captureAllRoutesImage(this.gpxCache, 'long', this.trip, { width: 1500, height: 560 });
+      pages.push(this._roadbookOverviewPage(ovImg));
+
+      // 2) One page per existing route (long + short)
+      for (let i = 0; i < this.trip.days.length; i++) {
+        const day = this.trip.days[i];
+        for (const rt of ['long', 'short']) {
+          const route = rt === 'long' ? day.longRoute : day.shortRoute;
+          const gpx = this.gpxCache[`${i}-${rt}`];
+          if (!route || !gpx) continue;
+          this._updatePrintOverlay(overlay,
+            `Kaart Dag ${day.dayNum} — ${day.label} (${rt === 'long' ? 'lang' : 'kort'})…`);
+          const img = await MapView.captureRouteImage(gpx, { width: 1500, height: 620 });
+          const climbs = this._climbsForPrint(i, rt, gpx);
+          pages.push(this._roadbookStagePage(day, rt, route, gpx, img, climbs));
+        }
+      }
+
+      let root = document.getElementById('print-root');
+      if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
+      root.innerHTML = pages.join('');
+
+      document.body.classList.add('printing-roadbook');
+      const cleanup = () => {
+        document.body.classList.remove('printing-roadbook');
+        root.innerHTML = '';
+        window.removeEventListener('afterprint', cleanup);
+      };
+      window.addEventListener('afterprint', cleanup);
+
+      this._removePrintOverlay(overlay);
+      // Let layout settle (images decode) before opening the print dialog
+      await new Promise(r => setTimeout(r, 350));
+      window.print();
+    } catch (e) {
+      this._removePrintOverlay(overlay);
+      alert('Roadbook maken is mislukt: ' + (e?.message || e));
+    }
+  },
+
+  _roadbookOverviewPage(ovImg) {
+    const trip = this.trip;
+    const title = localStorage.getItem(`trip-title-${trip.year}`) || `Fietsweek ${trip.year} — ${trip.destination}`;
+    const riding = trip.days.filter(d => d.longRoute || d.shortRoute);
+    const totalKm = riding.reduce((s, d) => s + (d.longRoute?.km || 0), 0);
+    const totalHm = riding.reduce((s, d) => s + (d.longRoute?.hm || 0), 0);
+    const ws = this._weekStats();
+    const order = ['HC', '1', '2', '3', '4'];
+    const badges = order.filter(k => ws.counts[k]).map(k =>
+      `<span class="pr-badge cat-${k}">${ws.counts[k]}× ${ChartView.catLabel(k)}</span>`).join('');
+
+    const rows = trip.days.map(day => {
+      const r = day.longRoute || day.shortRoute;
+      if (!r) return `<tr class="pr-rest"><td>${day.dayNum}</td><td>${this._esc(day.label)}</td>
+        <td colspan="4">${this._esc(day.comments || day.theme || 'Rustdag')}</td></tr>`;
+      const climbs = this._climbsForPrint(trip.days.indexOf(day), day.longRoute ? 'long' : 'short',
+        this.gpxCache[`${trip.days.indexOf(day)}-${day.longRoute ? 'long' : 'short'}`]);
+      const named = climbs.filter(c => this._climbCategory(c)).length;
+      return `<tr>
+        <td>${day.dayNum}</td>
+        <td>${this._esc(day.label)}</td>
+        <td class="pr-rt">${this._esc(r.name || day.theme || '')}</td>
+        <td class="pr-num">${r.km} km</td>
+        <td class="pr-num">${(r.hm || 0).toLocaleString()} hm</td>
+        <td class="pr-num">${named} cols</td>
+      </tr>`;
+    }).join('');
+
+    const mapHtml = ovImg
+      ? `<img class="pr-ov-map" src="${ovImg}" alt="Overzichtskaart">`
+      : `<div class="pr-map-missing">Kaart kon niet worden geladen</div>`;
+
+    return `<section class="print-page pr-overview">
+      <header class="pr-head">
+        <h1>${this._esc(title)}</h1>
+        <div class="pr-sub">📍 ${this._esc(trip.basecamp || '')} · ${riding.length} ritdagen · ${Math.round(totalKm)} km · ${totalHm.toLocaleString()} hm</div>
+      </header>
+      <div class="pr-ov-grid">
+        <div class="pr-ov-left">
+          <div class="pr-score"><span class="pr-score-pts">${ws.total}</span> klimpunten · ${ws.n} cols deze week</div>
+          <div class="pr-badges">${badges}</div>
+          <table class="pr-table">
+            <thead><tr><th>Dag</th><th></th><th>Route</th><th>Afstand</th><th>Klim</th><th>Cols</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="pr-ov-right">${mapHtml}</div>
+      </div>
+      <footer class="pr-foot">${this._esc(title)} · gegenereerd ${new Date().toLocaleDateString('nl-NL')}</footer>
+    </section>`;
+  },
+
+  _roadbookStagePage(day, rt, route, gpx, img, climbs) {
+    const rtLabel = rt === 'long' ? 'Lange route' : 'Korte route';
+    const stageSvg = ChartView.stageProfileSVG(gpx, climbs, { width: 1000, height: 210 });
+    const legend = `<div class="pr-legend">
+      ${[['<3%', '#6b7280'], ['3–5%', '#22c55e'], ['5–8%', '#eab308'], ['8–11%', '#f97316'], ['11–15%', '#ef4444'], ['>15%', '#7c3aed']]
+        .map(([l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`;
+
+    const cat = climbs.filter(c => this._climbCategory(c));
+    const climbCards = (climbs || []).map((c, i) => {
+      const ccat = this._climbCategory(c);
+      const badge = ccat ? `<span class="pr-cc-badge cat-${ccat}">${ChartView.catLabel(ccat)}</span>` : '';
+      const name = this._esc(c.colName || `Klim ${i + 1}`);
+      const note = this._loadClimbNoteFor(this.trip.days.indexOf(day), rt, i);
+      return `<div class="pr-climb">
+        <div class="pr-climb-head">${badge}<span class="pr-climb-name">${name}</span></div>
+        <div class="pr-climb-stats">${c.lengthKm.toFixed(1)} km · ${c.gain} hm · ${c.avgGrad}% gem · ${c.maxGrad}% max · top ${c.endEle} m</div>
+        <div class="pr-climb-prof">${ChartView.climbProfileSVG(c)}</div>
+        ${note ? `<div class="pr-climb-note">📝 ${this._esc(note)}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    const mapHtml = img
+      ? `<img class="pr-stage-map" src="${img}" alt="Routekaart">`
+      : `<div class="pr-map-missing">Kaart kon niet worden geladen</div>`;
+
+    const notes = [];
+    if (day.description) notes.push(`📖 ${this._esc(day.description)}`);
+    if (day.timedSegment) notes.push(`⏱ Getimed: ${this._esc(day.timedSegment.name)} · ${day.timedSegment.km} km · ${day.timedSegment.gradient}%`);
+    if (day.alternative) notes.push(`🔀 ${this._esc(day.alternative)}`);
+
+    return `<section class="print-page pr-stage">
+      <header class="pr-head">
+        <h1>${day.emoji || ''} Dag ${day.dayNum} — ${this._esc(day.label)} <span class="pr-rt-tag">${rtLabel}</span></h1>
+        <div class="pr-sub">${this._esc(route.name || day.theme || '')}${day.funName ? ' · ' + this._esc(day.funName) : ''}</div>
+      </header>
+      <div class="pr-stage-stats">
+        <span><b>${route.km}</b> km</span>
+        <span><b>${(route.hm || 0).toLocaleString()}</b> hm</span>
+        <span><b>${route.hmPerKm}</b> hm/km</span>
+        ${route.duration ? `<span><b>${this._esc(route.duration)}</b> duur</span>` : ''}
+        <span><b>${cat.length}</b> cols</span>
+      </div>
+      <div class="pr-stage-grid">
+        <div class="pr-stage-map-wrap">${mapHtml}</div>
+        <div class="pr-stage-prof-wrap">
+          <div class="pr-prof-title">Hoogteprofiel</div>
+          ${stageSvg}
+          ${legend}
+          ${notes.length ? `<div class="pr-notes">${notes.map(n => `<div>${n}</div>`).join('')}</div>` : ''}
+        </div>
+      </div>
+      ${climbCards ? `<div class="pr-climbs-title">Klimmen</div><div class="pr-climbs">${climbCards}</div>` : ''}
+    </section>`;
+  },
+
+  _loadClimbNoteFor(dayIdx, routeType, idx) {
+    return localStorage.getItem(`note-${this.trip.year}-${dayIdx}-${routeType}-${idx}`) || '';
+  },
+
+  _showPrintOverlay(msg) {
+    const el = document.createElement('div');
+    el.id = 'print-overlay';
+    el.innerHTML = `<div class="print-overlay-box">
+      <div class="print-spinner"></div>
+      <div class="print-overlay-msg">${this._esc(msg)}</div>
+    </div>`;
+    document.body.appendChild(el);
+    return el;
+  },
+  _updatePrintOverlay(el, msg) {
+    const m = el?.querySelector('.print-overlay-msg');
+    if (m) m.textContent = msg;
+  },
+  _removePrintOverlay(el) { el?.remove(); },
 
   // ─── DAY PAGE ────────────────────────────────────────────────────────────
 

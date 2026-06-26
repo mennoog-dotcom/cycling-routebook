@@ -107,6 +107,94 @@ const MapView = {
     }
   },
 
+  // ── Static map snapshots for the printable roadbook ───────────────────────
+  // These spin up a throwaway, off-screen 2-D map (preserveDrawingBuffer so the
+  // canvas can be exported), draw the route(s), wait for tiles, then resolve a
+  // PNG data-URL. A flat top-down view prints far more clearly than the 3-D one.
+  _captureMap(width, height, drawFn) {
+    return new Promise(resolve => {
+      if (typeof maplibregl === 'undefined') { resolve(null); return; }
+      const container = document.createElement('div');
+      container.style.cssText = `position:absolute;left:-99999px;top:0;width:${width}px;height:${height}px;`;
+      document.body.appendChild(container);
+
+      let map, done = false;
+      const finish = () => {
+        if (done) return; done = true;
+        let url = null;
+        try { url = map.getCanvas().toDataURL('image/png'); } catch (e) {}
+        try { map.remove(); } catch (e) {}
+        container.remove();
+        resolve(url);
+      };
+
+      try {
+        map = new maplibregl.Map({
+          container,
+          style: 'https://tiles.openfreemap.org/styles/liberty',
+          center: [6.35, 45.75], zoom: 9, pitch: 0, bearing: 0,
+          interactive: false, attributionControl: false,
+          preserveDrawingBuffer: true, fadeDuration: 0
+        });
+      } catch (e) { container.remove(); resolve(null); return; }
+
+      map.on('error', () => {}); // ignore individual tile errors
+      map.on('load', () => {
+        try { drawFn(map); } catch (e) {}
+        map.once('idle', finish);
+        setTimeout(finish, 9000); // hard fallback so a slow tile never hangs print
+      });
+    });
+  },
+
+  captureRouteImage(gpxData, opts = {}) {
+    const W = opts.width || 1400, H = opts.height || 620;
+    return this._captureMap(W, H, map => {
+      const coords = gpxData.points.map(p => [p.lng, p.lat]);
+      map.addSource('r', { type: 'geojson', lineMetrics: true,
+        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } } });
+      map.addLayer({ id: 'r-case', type: 'line', source: 'r',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#0a0a0a', 'line-width': 9, 'line-opacity': 0.5 } });
+      const grad = this._gradientLinePaint(gpxData.points);
+      map.addLayer({ id: 'r-line', type: 'line', source: 'r',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: grad ? { 'line-gradient': grad, 'line-width': 5 }
+                    : { 'line-color': '#FC4C02', 'line-width': 5 } });
+      map.addSource('r-s', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: coords[0] } } });
+      map.addSource('r-e', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: coords[coords.length - 1] } } });
+      map.addLayer({ id: 'r-sd', type: 'circle', source: 'r-s', paint: { 'circle-radius': 7, 'circle-color': '#22c55e', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } });
+      map.addLayer({ id: 'r-ed', type: 'circle', source: 'r-e', paint: { 'circle-radius': 7, 'circle-color': '#ef4444', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } });
+      const b = gpxData.bounds;
+      map.fitBounds([[b.minLng, b.minLat], [b.maxLng, b.maxLat]], { padding: 45, duration: 0 });
+    });
+  },
+
+  captureAllRoutesImage(gpxCache, routeType, trip, opts = {}) {
+    const W = opts.width || 1400, H = opts.height || 560;
+    return this._captureMap(W, H, map => {
+      const bounds = new maplibregl.LngLatBounds();
+      let has = false;
+      trip.days.forEach((day, idx) => {
+        const gpx = gpxCache[`${idx}-${routeType}`] || gpxCache[`${idx}-long`];
+        if (!gpx) return;
+        const color = this.DAY_COLORS[idx] || '#FC4C02';
+        const coords = gpx.points.map(p => [p.lng, p.lat]);
+        const sid = `o${idx}`;
+        map.addSource(sid, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } } });
+        map.addLayer({ id: sid + 'c', type: 'line', source: sid,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.7 } });
+        map.addLayer({ id: sid + 'l', type: 'line', source: sid,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': color, 'line-width': 4 } });
+        coords.forEach(c => bounds.extend(c));
+        has = true;
+      });
+      if (has) map.fitBounds(bounds, { padding: 45, duration: 0 });
+    });
+  },
+
   animateAllRoutes(gpxCache, routeType, trip, onStateChange) {
     if (!this._ready) return;
     this.stopAnimation();

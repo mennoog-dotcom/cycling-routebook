@@ -775,3 +775,104 @@ html, body, .day-info-panel, .overview-left, .trip-card, .day-card, #nav {
   flex-wrap: wrap;
   gap: 10px;
 }
+
+/* ── Print roadbook: build overlay (shown on screen while rendering) ─────── */
+#print-root { display: none; }
+#print-overlay {
+  position: fixed; inset: 0; z-index: 5000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(2px);
+}
+.print-overlay-box {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 26px 34px; text-align: center; max-width: 80vw;
+}
+.print-spinner {
+  width: 34px; height: 34px; margin: 0 auto 14px;
+  border: 3px solid var(--border); border-top-color: var(--orange);
+  border-radius: 50%; animation: pr-spin 0.8s linear infinite;
+}
+@keyframes pr-spin { to { transform: rotate(360deg); } }
+.print-overlay-msg { font-size: .9rem; color: var(--text); }
+
+/* ── Printable roadbook (A3 landscape) ──────────────────────────────────── */
+@media print {
+  @page { size: A3 landscape; margin: 8mm; }
+
+  body.printing-roadbook #app,
+  body.printing-roadbook #nav,
+  body.printing-roadbook #print-overlay { display: none !important; }
+  body.printing-roadbook #print-root { display: block !important; }
+
+  body.printing-roadbook {
+    background: #fff; color: #14181f;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+
+  .print-page {
+    width: 100%; box-sizing: border-box;
+    page-break-after: always; break-after: page;
+    page-break-inside: avoid;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #14181f;
+    display: flex; flex-direction: column;
+  }
+  .print-page:last-child { page-break-after: auto; break-after: auto; }
+
+  .pr-head { border-bottom: 2px solid #14181f; padding-bottom: 6px; margin-bottom: 10px; }
+  .pr-head h1 { font-size: 22px; margin: 0; font-weight: 800; }
+  .pr-rt-tag {
+    font-size: 12px; font-weight: 700; color: #fff; background: #FC4C02;
+    padding: 2px 8px; border-radius: 5px; vertical-align: middle; margin-left: 8px;
+  }
+  .pr-sub { font-size: 12.5px; color: #4b5563; margin-top: 3px; }
+  .pr-foot { margin-top: auto; padding-top: 8px; font-size: 10px; color: #9ca3af; text-align: center; }
+
+  /* category colours (shared) */
+  .cat-HC { background: #7c3aed !important; }
+  .cat-1  { background: #dc2626 !important; }
+  .cat-2  { background: #ea580c !important; }
+  .cat-3  { background: #ca8a04 !important; }
+  .cat-4  { background: #16a34a !important; }
+
+  /* Overview page */
+  .pr-ov-grid { display: grid; grid-template-columns: 1fr 1.25fr; gap: 18px; flex: 1; }
+  .pr-score { font-size: 14px; margin-bottom: 8px; }
+  .pr-score-pts { font-size: 26px; font-weight: 800; color: #FC4C02; }
+  .pr-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .pr-badge { color: #fff; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 5px; }
+  .pr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pr-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; border-bottom: 1px solid #d1d5db; padding: 5px 6px; }
+  .pr-table td { padding: 6px; border-bottom: 1px solid #e5e7eb; }
+  .pr-table .pr-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .pr-table .pr-rt { color: #374151; }
+  .pr-table .pr-rest td { color: #9ca3af; font-style: italic; }
+  .pr-ov-map, .pr-stage-map { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1; }
+  .pr-ov-right { min-height: 0; }
+  .pr-map-missing { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; border: 1px dashed #cbd5e1; border-radius: 8px; color: #9ca3af; font-size: 12px; }
+
+  /* Stage page */
+  .pr-stage-stats { display: flex; gap: 22px; font-size: 14px; margin-bottom: 10px; color: #374151; }
+  .pr-stage-stats b { font-size: 17px; color: #14181f; }
+  .pr-stage-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; margin-bottom: 12px; }
+  .pr-stage-map-wrap { min-height: 230px; }
+  .pr-prof-title, .pr-climbs-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; margin-bottom: 5px; }
+  .pr-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; font-size: 11px; color: #4b5563; }
+  .pr-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .pr-notes { margin-top: 8px; font-size: 11.5px; color: #374151; line-height: 1.4; }
+  .pr-notes div { margin-bottom: 3px; }
+
+  .pr-climbs-title { margin-top: 4px; }
+  .pr-climbs { display: flex; flex-wrap: wrap; gap: 10px; }
+  .pr-climb {
+    flex: 1 1 230px; max-width: 25%; min-width: 200px;
+    border: 1px solid #d1d5db; border-radius: 7px; padding: 8px 9px;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  .pr-climb-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .pr-cc-badge { color: #fff; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 4px; }
+  .pr-climb-name { font-size: 13px; font-weight: 700; }
+  .pr-climb-stats { font-size: 10.5px; color: #4b5563; margin-bottom: 5px; }
+  .pr-climb-prof svg { border: 1px solid #d1d5db; }
+  .pr-climb-note { font-size: 10.5px; color: #374151; margin-top: 5px; }
+}
