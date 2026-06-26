@@ -191,14 +191,14 @@ window.TRIP_2025 = {
       { startDistKm: 33.993, endDistKm: 37.7,   colName: "Andey", colUrl: null, cat: null }
     ],
     "2-long": [
-      { startDistKm: 0.586,   endDistKm: 24.5,    colName: "Col des Saisies", colUrl: "https://www.cyclingcols.com/col/saisies", cat: null },
-      { startDistKm: 36.876,  endDistKm: 47.72,   colName: "Col de Joly", colUrl: "https://www.cyclingcols.com/col/joly", cat: null },
-      { startDistKm: 69.849,  endDistKm: 82.38,   colName: "Col du Pré", colUrl: "https://www.cyclingcols.com/col/pre", cat: null },
-      { startDistKm: 89.952,  endDistKm: 95.591,  colName: "Cormet de Roselend", colUrl: "https://www.cyclingcols.com/col/roselend", cat: null },
-      { startDistKm: 126.157, endDistKm: 129.862, colName: "Queige", colUrl: "https://www.cyclingcols.com/col/forclaz-savoie", cat: null }
+      { startDistKm: 0.534,   endDistKm: 24.5,    colName: "Col des Saisies", colUrl: "https://www.cyclingcols.com/col/saisies", cat: null },
+      { startDistKm: 36.837,  endDistKm: 47.682,  colName: "Col de Joly", colUrl: "https://www.cyclingcols.com/col/joly", cat: null },
+      { startDistKm: 69.811,  endDistKm: 82.38,   colName: "Col du Pré", colUrl: "https://www.cyclingcols.com/col/pre", cat: "HC" },
+      { startDistKm: 89.892,  endDistKm: 95.591,  colName: "Cormet de Roselend", colUrl: "https://www.cyclingcols.com/col/roselend", cat: null },
+      { startDistKm: 126.079, endDistKm: 129.862, colName: "Queige", colUrl: "https://www.cyclingcols.com/col/forclaz-savoie", cat: null }
     ],
     "2-short": [
-      { startDistKm: 3.396,  endDistKm: 15.894, colName: "Col du Pré", colUrl: "https://www.cyclingcols.com/col/pre", cat: null },
+      { startDistKm: 3.377,  endDistKm: 15.894, colName: "Col du Pré", colUrl: "https://www.cyclingcols.com/col/pre", cat: "HC" },
       { startDistKm: 23.385, endDistKm: 28.997, colName: "Cormet de Roselend", colUrl: "https://www.cyclingcols.com/col/roselend", cat: null }
     ],
     "4-long": [
@@ -214,8 +214,8 @@ window.TRIP_2025 = {
       { startDistKm: 71.697, endDistKm: 81.292, colName: "Col du Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
     ],
     "5-long": [
-      { startDistKm: 30.967, endDistKm: 47.929,  colName: "Col du Semnoz", colUrl: "https://www.cyclingcols.com/col/chatillon", cat: null },
-      { startDistKm: 92.378, endDistKm: 101.975, colName: "Col du Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
+      { startDistKm: 30.95,  endDistKm: 47.91,   colName: "Col du Semnoz", colUrl: "https://www.cyclingcols.com/col/chatillon", cat: "HC" },
+      { startDistKm: 92.295, endDistKm: 101.936, colName: "Col du Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
     ],
     "5-short": [
       { startDistKm: 56.855, endDistKm: 66.626, colName: "Col du Marais", colUrl: null, cat: null },
