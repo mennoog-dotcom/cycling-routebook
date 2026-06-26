@@ -7,6 +7,7 @@ const MapView = {
   _pendingRoute: null,
   _overviewLayerIds: [],
   _climbMarkers: [],
+  _climbOverlayIds: [],
   _lunchMarker: null,
   _smoothBearing: null,
 
@@ -436,6 +437,11 @@ const MapView = {
     this._clearClimbMarkers();
     if (!this._ready || !namedClimbs?.length) return;
 
+    // Redraw each climb as a gradient line on top of the base route so the
+    // steepness colours stay visible where the route doubles back over a climb
+    // (otherwise the later descent — clamped to grey — overpaints the ascent).
+    this._drawClimbOverlays(namedClimbs, pts);
+
     namedClimbs.forEach((c, i) => {
       const pt = pts[c.endIdx];
       if (!pt) return;
@@ -459,9 +465,56 @@ const MapView = {
     if (entry) entry.el.querySelector('.col-marker-label').textContent = name;
   },
 
+  // Draw each climb's ascent as its own gradient line on top of route-line.
+  _drawClimbOverlays(namedClimbs, pts) {
+    this._clearClimbOverlays();
+    if (!this.map.getLayer('route-line')) return;
+    namedClimbs.forEach((c, i) => {
+      if (c.startIdx == null || c.endIdx == null || c.endIdx <= c.startIdx) return;
+      const coords = [];
+      for (let k = c.startIdx; k <= c.endIdx; k++) coords.push([pts[k].lng, pts[k].lat]);
+      if (coords.length < 2) return;
+      const srcId = `climb-ov-${i}`;
+      const layerId = `${srcId}-line`;
+      try {
+        this.map.addSource(srcId, {
+          type: 'geojson', lineMetrics: true,
+          data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
+        });
+        const grad = this._climbGradientPaint(pts, c.startIdx, c.endIdx);
+        this.map.addLayer({
+          id: layerId, type: 'line', source: srcId,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: grad
+            ? { 'line-gradient': grad, 'line-width': 5, 'line-opacity': 1 }
+            : { 'line-color': '#FC4C02', 'line-width': 5, 'line-opacity': 1 }
+        });
+        this._climbOverlayIds.push(srcId);
+      } catch (e) {}
+    });
+  },
+
+  // Gradient paint for a climb sub-segment (local distances start at 0).
+  _climbGradientPaint(pts, startIdx, endIdx) {
+    const base = pts[startIdx].cumDist;
+    const seg = [];
+    for (let i = startIdx; i <= endIdx; i++) seg.push({ cumDist: pts[i].cumDist - base, ele: pts[i].ele });
+    return this._gradientLinePaint(seg);
+  },
+
+  _clearClimbOverlays() {
+    this._climbOverlayIds.forEach(srcId => {
+      const layerId = `${srcId}-line`;
+      try { if (this.map.getLayer(layerId)) this.map.removeLayer(layerId); } catch (e) {}
+      try { if (this.map.getSource(srcId)) this.map.removeSource(srcId); } catch (e) {}
+    });
+    this._climbOverlayIds = [];
+  },
+
   _clearClimbMarkers() {
     this._climbMarkers.forEach(({ marker }) => marker.remove());
     this._climbMarkers = [];
+    this._clearClimbOverlays();
   },
 
   showHoverMarker(point) {
