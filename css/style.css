@@ -148,6 +148,27 @@ h3 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: upp
 .day-card.clickable:hover { border-color: var(--orange); background: #1d1d1d; }
 .day-card.rest-day { opacity: 0.45; }
 
+/* Day reordering (editor only) */
+.day-reorder-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap;
+  margin-bottom: 4px; padding: 6px 2px;
+}
+.day-reorder-hint { font-size: .74rem; color: var(--muted); }
+.day-reorder-reset {
+  background: var(--bg2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; font-size: .72rem; cursor: pointer;
+}
+.day-reorder-reset:hover { border-color: var(--orange); }
+.day-card.draggable-card { cursor: grab; }
+.day-card.draggable-card.dragging { opacity: .4; cursor: grabbing; }
+.day-card.drag-over { border-color: var(--orange); border-style: dashed; background: #1d1d1d; }
+.day-drag-handle {
+  color: var(--muted); font-size: 1rem; line-height: 1; cursor: grab;
+  user-select: none; padding: 0 2px;
+}
+.day-card.draggable-card:hover .day-drag-handle { color: var(--orange); }
+
 .day-card-top { display: flex; align-items: center; justify-content: space-between; }
 .day-card-left { display: flex; align-items: center; gap: 10px; }
 .day-card-emoji { font-size: 1.5rem; }

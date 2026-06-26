@@ -96,6 +96,49 @@ const App = {
     });
   },
 
+  // ─── DAY ORDER (calendar slots vs. ride content) ─────────────────────────
+  // The `days` array holds the ride CONTENT (routes, climbs, notes, lunch).
+  // All per-day storage is keyed by a day's index in that array, so content
+  // never moves. Reordering only changes which calendar SLOT each ride sits
+  // in: `dayOrder[slotPosition] = contentIndex`. Slot position p borrows its
+  // calendar identity (weekday label + day number) from days[p].
+  _dayOrderKey() { return `dayorder-${this.trip.year}`; },
+
+  _dayOrder() {
+    const n = this.trip.days.length;
+    const identity = Array.from({ length: n }, (_, i) => i);
+    const ok = a => Array.isArray(a) && a.length === n &&
+      a.every(x => Number.isInteger(x) && x >= 0 && x < n) && new Set(a).size === n;
+    const raw = localStorage.getItem(this._dayOrderKey());
+    if (raw) { try { const a = JSON.parse(raw); if (ok(a)) return a; } catch (e) {} }
+    if (ok(this.trip.bakedDayOrder)) return this.trip.bakedDayOrder.slice();
+    return identity;
+  },
+
+  _saveDayOrder(order) {
+    localStorage.setItem(this._dayOrderKey(), JSON.stringify(order));
+  },
+
+  _resetDayOrder() {
+    localStorage.removeItem(this._dayOrderKey());
+    this._renderDayCards();
+  },
+
+  // Calendar slot (label/dayNum/id) for a given content-day index.
+  _slotFor(contentIdx) {
+    const pos = this._dayOrder().indexOf(contentIdx);
+    return this.trip.days[pos >= 0 ? pos : contentIdx];
+  },
+
+  _reorderDays(fromPos, toPos) {
+    const order = this._dayOrder();
+    if (fromPos === toPos || fromPos < 0 || toPos < 0) return;
+    const [moved] = order.splice(fromPos, 1);
+    order.splice(toPos, 0, moved);
+    this._saveDayOrder(order);
+    this._renderDayCards();
+  },
+
   _renderOverview() {
     this._showScreen('overview');
     this._setupNav('Fietsweek ' + this.trip.year, () => this._renderHome());
@@ -131,17 +174,46 @@ const App = {
 
     this._renderWeekScore();
 
-    // Day cards
-    document.getElementById('overview-days').innerHTML = this.trip.days.map((day, i) => {
+    // Day cards (in calendar-slot order; draggable to reorder in editor mode)
+    this._renderDayCards();
+
+    this._renderGpxDownloadHelper();
+
+    const printBtn = document.getElementById('btn-print');
+    if (printBtn) printBtn.onclick = () => this._printRoadbook();
+
+    const bakeBtn = document.getElementById('btn-bake');
+    if (bakeBtn) bakeBtn.onclick = () => this._exportBaked();
+
+    // Map: init then show all routes
+    this.overviewRouteType = 'long';
+    MapView.init('overview-map', this.trip.center, this.trip.defaultZoom);
+    MapView.map.on('load', () => {
+      MapView.showAllRoutes(this.gpxCache, this.overviewRouteType, this.trip);
+    });
+    this._bindOverviewMapEvents();
+  },
+
+  _renderDayCards() {
+    const ed = this.isEditor;
+    const order = this._dayOrder();
+    const reordered = order.some((c, p) => c !== p);
+
+    const html = order.map((contentIdx, pos) => {
+      const day  = this.trip.days[contentIdx];  // ride content
+      const slot = this.trip.days[pos];          // calendar identity for this slot
       const hasRide = !!(day.longRoute || day.shortRoute);
       const L = day.longRoute, S = day.shortRoute;
-      const dotColor = MapView.DAY_COLORS[i] || '#FC4C02';
-      return `<div class="day-card ${hasRide ? 'clickable' : 'rest-day'}" ${hasRide ? `onclick="App.openDay(${i})"` : ''}>
+      const dotColor = MapView.DAY_COLORS[contentIdx] || '#FC4C02';
+      const dragAttrs = ed ? `draggable="true" data-pos="${pos}" data-content="${contentIdx}"` : '';
+      const click = hasRide ? `onclick="App.openDay(${contentIdx})"` : '';
+      return `<div class="day-card ${hasRide ? 'clickable' : 'rest-day'}${ed ? ' draggable-card' : ''}" ${dragAttrs} ${click}>
         <div class="day-card-top">
           <div class="day-card-left">
+            ${ed ? '<span class="day-drag-handle" title="Sleep om dagen te wisselen">⠿</span>' : ''}
             <div class="day-card-emoji" style="${hasRide ? `border-left: 3px solid ${dotColor}; padding-left:6px` : ''}">${day.emoji}</div>
             <div class="day-card-label">
-              <span class="day-name">${day.label}</span>
+              <span class="day-name">Dag ${slot.dayNum} · ${slot.label}</span>
               <span class="day-theme">${day.theme}</span>
             </div>
           </div>
@@ -160,21 +232,49 @@ const App = {
       </div>`;
     }).join('');
 
-    this._renderGpxDownloadHelper();
+    const editorHint = ed
+      ? `<div class="day-reorder-bar">
+           <span class="day-reorder-hint">↕ Sleep dagen om ritten van dag te wisselen (weekdagen blijven staan).</span>
+           ${reordered ? '<button class="day-reorder-reset" onclick="App._resetDayOrder()">↺ Standaardvolgorde</button>' : ''}
+         </div>`
+      : '';
 
-    const printBtn = document.getElementById('btn-print');
-    if (printBtn) printBtn.onclick = () => this._printRoadbook();
+    document.getElementById('overview-days').innerHTML = editorHint + html;
+    if (ed) this._bindDayReorder();
+  },
 
-    const bakeBtn = document.getElementById('btn-bake');
-    if (bakeBtn) bakeBtn.onclick = () => this._exportBaked();
-
-    // Map: init then show all routes
-    this.overviewRouteType = 'long';
-    MapView.init('overview-map', this.trip.center, this.trip.defaultZoom);
-    MapView.map.on('load', () => {
-      MapView.showAllRoutes(this.gpxCache, this.overviewRouteType, this.trip);
+  _bindDayReorder() {
+    const container = document.getElementById('overview-days');
+    if (!container) return;
+    let dragPos = null;
+    container.querySelectorAll('.draggable-card').forEach(card => {
+      card.addEventListener('dragstart', e => {
+        dragPos = +card.dataset.pos;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(dragPos)); } catch (_) {}
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        container.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+        dragPos = null;
+      });
+      card.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (+card.dataset.pos !== dragPos) card.classList.add('drag-over');
+      });
+      card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+      card.addEventListener('drop', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        let from = dragPos;
+        if (from == null) { const d = +e.dataTransfer.getData('text/plain'); from = isNaN(d) ? null : d; }
+        const to = +card.dataset.pos;
+        card.classList.remove('drag-over');
+        if (from != null) this._reorderDays(from, to);
+      });
     });
-    this._bindOverviewMapEvents();
   },
 
   // Climbs for an arbitrary day/route (honours overrides) — used for week stats
@@ -273,9 +373,11 @@ const App = {
   _renderGpxDownloadHelper() {
     const el = document.getElementById('overview-history');
     const routes = [];
-    this.trip.days.forEach(day => {
-      if (day.longRoute?.strava)  routes.push({ label: `${day.label} – Lang`, name: day.longRoute.name,  strava: day.longRoute.strava });
-      if (day.shortRoute?.strava) routes.push({ label: `${day.label} – Kort`, name: day.shortRoute.name, strava: day.shortRoute.strava });
+    this._dayOrder().forEach((contentIdx, pos) => {
+      const day = this.trip.days[contentIdx];
+      const slot = this.trip.days[pos];
+      if (day.longRoute?.strava)  routes.push({ label: `${slot.label} – Lang`, name: day.longRoute.name,  strava: day.longRoute.strava });
+      if (day.shortRoute?.strava) routes.push({ label: `${slot.label} – Kort`, name: day.shortRoute.name, strava: day.shortRoute.strava });
     });
     const links = routes.map(r => {
       const id = r.strava.match(/routes\/(\d+)/)?.[1];
@@ -320,17 +422,20 @@ const App = {
       pages.push(this._roadbookOverviewPage(ovImg));
 
       // 2) One page per existing route (long + short)
-      for (let i = 0; i < this.trip.days.length; i++) {
+      const printOrder = this._dayOrder();
+      for (let p = 0; p < printOrder.length; p++) {
+        const i = printOrder[p];
         const day = this.trip.days[i];
+        const slot = this.trip.days[p];
         for (const rt of ['long', 'short']) {
           const route = rt === 'long' ? day.longRoute : day.shortRoute;
           const gpx = this.gpxCache[`${i}-${rt}`];
           if (!route || !gpx) continue;
           this._updatePrintOverlay(overlay,
-            `Kaart Dag ${day.dayNum} — ${day.label} (${rt === 'long' ? 'lang' : 'kort'})…`);
+            `Kaart Dag ${slot.dayNum} — ${slot.label} (${rt === 'long' ? 'lang' : 'kort'})…`);
           const img = await MapView.captureRouteImage(gpx, { width: 1500, height: 620 });
           const climbs = this._climbsForPrint(i, rt, gpx);
-          pages.push(this._roadbookStagePage(day, rt, route, gpx, img, climbs));
+          pages.push(this._roadbookStagePage(day, rt, route, gpx, img, climbs, slot));
         }
       }
 
@@ -367,16 +472,18 @@ const App = {
     const badges = order.filter(k => ws.counts[k]).map(k =>
       `<span class="pr-badge cat-${k}">${ws.counts[k]}× ${ChartView.catLabel(k)}</span>`).join('');
 
-    const rows = trip.days.map(day => {
+    const rows = this._dayOrder().map((contentIdx, pos) => {
+      const day = trip.days[contentIdx];
+      const slot = trip.days[pos];
       const r = day.longRoute || day.shortRoute;
-      if (!r) return `<tr class="pr-rest"><td>${day.dayNum}</td><td>${this._esc(day.label)}</td>
+      if (!r) return `<tr class="pr-rest"><td>${slot.dayNum}</td><td>${this._esc(slot.label)}</td>
         <td colspan="4">${this._esc(day.comments || day.theme || 'Rustdag')}</td></tr>`;
-      const climbs = this._climbsForPrint(trip.days.indexOf(day), day.longRoute ? 'long' : 'short',
-        this.gpxCache[`${trip.days.indexOf(day)}-${day.longRoute ? 'long' : 'short'}`]);
+      const climbs = this._climbsForPrint(contentIdx, day.longRoute ? 'long' : 'short',
+        this.gpxCache[`${contentIdx}-${day.longRoute ? 'long' : 'short'}`]);
       const named = climbs.filter(c => this._climbCategory(c)).length;
       return `<tr>
-        <td>${day.dayNum}</td>
-        <td>${this._esc(day.label)}</td>
+        <td>${slot.dayNum}</td>
+        <td>${this._esc(slot.label)}</td>
         <td class="pr-rt">${this._esc(r.name || day.theme || '')}</td>
         <td class="pr-num">${r.km} km</td>
         <td class="pr-num">${(r.hm || 0).toLocaleString()} hm</td>
@@ -408,7 +515,8 @@ const App = {
     </section>`;
   },
 
-  _roadbookStagePage(day, rt, route, gpx, img, climbs) {
+  _roadbookStagePage(day, rt, route, gpx, img, climbs, slot) {
+    slot = slot || this._slotFor(this.trip.days.indexOf(day));
     const rtLabel = rt === 'long' ? 'Lange route' : 'Korte route';
     const stageSvg = ChartView.stageProfileSVG(gpx, climbs, { width: 1000, height: 210 });
     const legend = `<div class="pr-legend">
@@ -456,7 +564,7 @@ const App = {
 
     return `<section class="print-page pr-stage">
       <header class="pr-head">
-        <h1>${day.emoji || ''} Dag ${day.dayNum} — ${this._esc(day.label)} <span class="pr-rt-tag">${rtLabel}</span></h1>
+        <h1>${day.emoji || ''} Dag ${slot.dayNum} — ${this._esc(slot.label)} <span class="pr-rt-tag">${rtLabel}</span></h1>
         <div class="pr-sub">${this._esc(route.name || day.theme || '')}${day.funName ? ' · ' + this._esc(day.funName) : ''}</div>
       </header>
       <div class="pr-stage-stats">
@@ -520,8 +628,9 @@ const App = {
 
   _renderDay() {
     const day = this.trip.days[this.currentDayIdx];
+    const slot = this._slotFor(this.currentDayIdx);
     this._showScreen('day');
-    this._setupNav(`Dag ${day.dayNum} — ${day.label}`, () => this._renderOverview());
+    this._setupNav(`Dag ${slot.dayNum} — ${slot.label}`, () => this._renderOverview());
     document.getElementById('btn-long').style.display  = day.longRoute  ? '' : 'none';
     document.getElementById('btn-short').style.display = day.shortRoute ? '' : 'none';
     this._updateRouteToggle();
@@ -532,13 +641,14 @@ const App = {
 
   _renderDayContent(day) {
     const route = day[this.routeType === 'long' ? 'longRoute' : 'shortRoute'] || day.longRoute;
+    const slot = this._slotFor(this.currentDayIdx);
 
     document.getElementById('day-header').innerHTML = `
       <div class="day-big-emoji">${day.emoji}</div>
       <div>
         <div class="day-theme-label">${day.theme}${day.funName ? ' — ' + day.funName : ''}</div>
-        <h2 class="day-route-name">${route?.name || day.label}</h2>
-        <div class="day-dayname">${day.label} · Dag ${day.dayNum}</div>
+        <h2 class="day-route-name">${route?.name || slot.label}</h2>
+        <div class="day-dayname">${slot.label} · Dag ${slot.dayNum}</div>
       </div>`;
 
     document.getElementById('day-stats').innerHTML = route ? `
@@ -903,8 +1013,13 @@ const App = {
     // Trip title
     const bakedTitle = localStorage.getItem(`trip-title-${y}`) || this.trip.bakedTitle || null;
 
+    // Day order (calendar-slot ↔ ride mapping) — only export if non-default
+    const dayOrder = this._dayOrder();
+    const dayOrderChanged = dayOrder.some((c, p) => c !== p);
+
     const out = {};
     if (bakedTitle) out.bakedTitle = bakedTitle;
+    if (dayOrderChanged) out.bakedDayOrder = dayOrder;
     if (Object.keys(bakedClimbs).length) out.bakedClimbs = bakedClimbs;
     if (Object.keys(bakedStage).length)  out.bakedStage  = bakedStage;
     if (Object.keys(bakedLunch).length)  out.bakedLunch  = bakedLunch;
@@ -926,6 +1041,7 @@ const App = {
       `Geëxporteerd naar Downloads als bake-${y}.json.\n\n` +
       `Klimmen: ${counts.climbs} route(s)\nEtappe-notities: ${counts.stage} route(s)\nLunch-pins: ${counts.lunch}\n` +
       (bakedTitle ? 'Titel: ja\n' : '') +
+      (dayOrderChanged ? 'Dagvolgorde: aangepast\n' : '') +
       `\nVervang/voeg de bovenste eigenschappen (bakedClimbs, bakedStage, bakedLunch, bakedTitle) toe in trip.js. Het JSON-bestand staat ook in de console.`
     );
   },
