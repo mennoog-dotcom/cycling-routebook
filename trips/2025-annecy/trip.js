@@ -202,14 +202,14 @@ window.TRIP_2025 = {
       { startDistKm: 23.385, endDistKm: 28.997, colName: "Cormet de Roselend", colUrl: "https://www.cyclingcols.com/col/roselend", cat: null }
     ],
     "4-long": [
-      { startDistKm: 8.877,  endDistKm: 13.194, colName: "Col de l'Epine", colUrl: "https://www.cyclingcols.com/col/tamie", cat: null },
+      { startDistKm: 8.877,  endDistKm: 13.194, colName: "Col de l'Epine", colUrl: "https://www.cyclingcols.com/col/epine", cat: null },
       { startDistKm: 24.666, endDistKm: 40.394, colName: "Col de l'Arpettaz", colUrl: "https://www.cyclingcols.com/col/arpettaz", cat: null },
       { startDistKm: 66.494, endDistKm: 70.219, colName: "Col du Vorger", colUrl: "https://www.cyclingcols.com/col/vorger", cat: null },
       { startDistKm: 75.194, endDistKm: 82.468, colName: "Col de Tamié", colUrl: "https://www.cyclingcols.com/col/tamie-collet", cat: null },
       { startDistKm: 95.981, endDistKm: 105.36, colName: "Col de Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
     ],
     "4-short": [
-      { startDistKm: 8.877,  endDistKm: 12.462, colName: "Col de l'Épine", colUrl: null, cat: null },
+      { startDistKm: 8.877,  endDistKm: 12.462, colName: "Col de l'Épine", colUrl: "https://www.cyclingcols.com/col/epine", cat: null },
       { startDistKm: 24.666, endDistKm: 40.394, colName: "Col de l'Arpettaz", colUrl: "https://www.cyclingcols.com/col/arpettaz", cat: null },
       { startDistKm: 71.697, endDistKm: 81.292, colName: "Col du Marais", colUrl: "https://www.cyclingcols.com/col/marais", cat: null }
     ],
