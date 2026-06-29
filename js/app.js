@@ -172,12 +172,75 @@ const App = {
     return m || 1;
   },
 
-  _toughnessStars(dayIdx, routeType) {
+  _toughKey(dayIdx, routeType) { return `tough-${this.trip.year}-${dayIdx}-${routeType}`; },
+
+  // Manual rating override (editor): localStorage → baked → null (= auto).
+  _loadToughOverride(dayIdx, routeType) {
+    const raw = localStorage.getItem(this._toughKey(dayIdx, routeType));
+    if (raw != null) { const n = parseFloat(raw); if (!isNaN(n)) return n; }
+    const baked = this.trip.bakedToughness?.[`${dayIdx}-${routeType}`];
+    return (typeof baked === 'number') ? baked : null;
+  },
+
+  _saveToughOverride(dayIdx, routeType, val) {
+    const key = this._toughKey(dayIdx, routeType);
+    if (val == null) localStorage.removeItem(key);
+    else localStorage.setItem(key, String(val));
+  },
+
+  // Auto toughness from GPX (distance + climbing), scaled within the route pool.
+  _autoToughnessStars(dayIdx, routeType) {
     const raw = this._routeRaw(dayIdx, routeType);
     if (!raw) return 0;
     let s = raw / this._maxRouteRaw(routeType) * 5;
     s = Math.round(s * 2) / 2;
     return Math.min(5, Math.max(0.5, s));
+  },
+
+  _toughnessStars(dayIdx, routeType) {
+    const override = this._loadToughOverride(dayIdx, routeType);
+    if (override != null) return Math.min(5, Math.max(0.5, override));
+    return this._autoToughnessStars(dayIdx, routeType);
+  },
+
+  // Editable star widget (editor mode): click a star half to set the rating,
+  // ↺ resets to the automatic value.
+  _editableStarsHtml(dayIdx, routeType) {
+    const cur = this._toughnessStars(dayIdx, routeType);
+    const isOverride = this._loadToughOverride(dayIdx, routeType) != null;
+    let stars = '';
+    for (let i = 1; i <= 5; i++) {
+      const fill = Math.max(0, Math.min(1, cur - (i - 1))) * 100;
+      stars += `<span class="te-star">` +
+        `<span class="te-bg">★</span>` +
+        `<span class="te-fill" style="width:${fill}%">★</span>` +
+        `<span class="te-half te-left" data-val="${i - 0.5}"></span>` +
+        `<span class="te-half te-right" data-val="${i}"></span>` +
+      `</span>`;
+    }
+    return `<span class="tough-edit" data-day="${dayIdx}" data-rt="${routeType}" title="Klik om de zwaarte aan te passen">` +
+      stars +
+      `<button class="te-clear${isOverride ? ' active' : ''}" title="${isOverride ? 'Terug naar automatische zwaarte' : 'Automatisch berekend'}">↺</button>` +
+    `</span>`;
+  },
+
+  _bindToughEdit() {
+    document.querySelectorAll('.tough-edit').forEach(widget => {
+      const dayIdx = +widget.dataset.day, rt = widget.dataset.rt;
+      widget.querySelectorAll('.te-half').forEach(half => {
+        half.addEventListener('click', e => {
+          e.preventDefault(); e.stopPropagation();
+          this._saveToughOverride(dayIdx, rt, parseFloat(half.dataset.val));
+          this._renderDayContent(this.trip.days[this.currentDayIdx]);
+        });
+      });
+      const clear = widget.querySelector('.te-clear');
+      if (clear) clear.addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        this._saveToughOverride(dayIdx, rt, null);
+        this._renderDayContent(this.trip.days[this.currentDayIdx]);
+      });
+    });
   },
 
   _starsHtml(stars, extraClass = '') {
@@ -821,13 +884,17 @@ const App = {
     const slot = this._slotFor(this.currentDayIdx);
 
     const stars = this._toughnessStars(this.currentDayIdx, this.routeType);
+    const toughHtml = this.isEditor
+      ? `<span class="day-tough">Zwaarte ${this._editableStarsHtml(this.currentDayIdx, this.routeType)}</span>`
+      : (stars ? `<span class="day-tough">Zwaarte ${this._starsHtml(stars)}</span>` : '');
     document.getElementById('day-header').innerHTML = `
       <div class="day-big-emoji">${this._dayIcon(day)}</div>
       <div>
         <div class="day-theme-label">${day.theme}${day.funName ? ' — ' + day.funName : ''}</div>
         <h2 class="day-route-name">${route?.name || slot.label}</h2>
-        <div class="day-dayname">${slot.label} · Dag ${slot.dayNum}${stars ? ' · <span class="day-tough">Zwaarte ' + this._starsHtml(stars) + '</span>' : ''}</div>
+        <div class="day-dayname">${slot.label} · Dag ${slot.dayNum}${toughHtml ? ' · ' + toughHtml : ''}</div>
       </div>`;
+    if (this.isEditor) this._bindToughEdit();
 
     document.getElementById('day-stats').innerHTML = route ? `
       <div class="stat-box"><div class="stat-value">${route.km}</div><div class="stat-label">km</div></div>
@@ -1127,8 +1194,9 @@ const App = {
     const bakedClimbs = {};
     const bakedStage  = {};
     const bakedLunch  = {};
+    const bakedToughness = {};
     const saveDay = this.currentDayIdx, saveRt = this.routeType;
-    const counts = { climbs: 0, stage: 0, lunch: 0 };
+    const counts = { climbs: 0, stage: 0, lunch: 0, tough: 0 };
 
     this.trip.days.forEach((day, di) => {
       // Map lunch pin (per day) — localStorage override, else carry baked forward
@@ -1184,6 +1252,11 @@ const App = {
         else if (bs.coffee) entry.coffee = bs.coffee;
 
         if (Object.keys(entry).length) { bakedStage[key] = entry; counts.stage++; }
+
+        // ── Toughness rating override ──
+        const lsTough = localStorage.getItem(`tough-${y}-${di}-${rt}`);
+        if (lsTough != null) { const n = parseFloat(lsTough); if (!isNaN(n)) { bakedToughness[key] = n; counts.tough++; } }
+        else if (typeof this.trip.bakedToughness?.[key] === 'number') bakedToughness[key] = this.trip.bakedToughness[key];
       });
     });
     this.currentDayIdx = saveDay; this.routeType = saveRt;
@@ -1201,6 +1274,7 @@ const App = {
     if (Object.keys(bakedClimbs).length) out.bakedClimbs = bakedClimbs;
     if (Object.keys(bakedStage).length)  out.bakedStage  = bakedStage;
     if (Object.keys(bakedLunch).length)  out.bakedLunch  = bakedLunch;
+    if (Object.keys(bakedToughness).length) out.bakedToughness = bakedToughness;
 
     if (!Object.keys(out).length) {
       alert('Geen aanpassingen gevonden om te bakken.');
@@ -1217,10 +1291,10 @@ const App = {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     alert(
       `Geëxporteerd naar Downloads als bake-${y}.json.\n\n` +
-      `Klimmen: ${counts.climbs} route(s)\nEtappe-notities: ${counts.stage} route(s)\nLunch-pins: ${counts.lunch}\n` +
+      `Klimmen: ${counts.climbs} route(s)\nEtappe-notities: ${counts.stage} route(s)\nLunch-pins: ${counts.lunch}\nZwaarte-ratings: ${counts.tough} route(s)\n` +
       (bakedTitle ? 'Titel: ja\n' : '') +
       (dayOrderChanged ? 'Dagvolgorde: aangepast\n' : '') +
-      `\nVervang/voeg de bovenste eigenschappen (bakedClimbs, bakedStage, bakedLunch, bakedTitle) toe in trip.js. Het JSON-bestand staat ook in de console.`
+      `\nVervang/voeg de bovenste eigenschappen (bakedClimbs, bakedStage, bakedLunch, bakedToughness, bakedTitle) toe in trip.js. Het JSON-bestand staat ook in de console.`
     );
   },
 
