@@ -1797,6 +1797,20 @@ const App = {
 
   // ─── GPX REPLACE ─────────────────────────────────────────────────────────
 
+  // Wipe all climb edits (override + legacy per-index name/url/cat/note keys)
+  // for the current slot. Used when a new GPX is uploaded: the old edits and
+  // baked defs are pinned to the previous track and no longer apply.
+  _clearClimbEditKeys() {
+    const y = this.trip.year, d = this.currentDayIdx, rt = this.routeType;
+    localStorage.removeItem(`climbs-${y}-${d}-${rt}`);
+    for (let i = 0; i < 60; i++) {
+      localStorage.removeItem(`col-${y}-${d}-${rt}-${i}`);
+      localStorage.removeItem(`colurl-${y}-${d}-${rt}-${i}`);
+      localStorage.removeItem(`colcat-${y}-${d}-${rt}-${i}`);
+      localStorage.removeItem(`note-${y}-${d}-${rt}-${i}`);
+    }
+  },
+
   _loadGpxFile(file) {
     const reader = new FileReader();
     reader.onload = e => {
@@ -1804,8 +1818,15 @@ const App = {
       if (!gpx) { alert('Kon GPX bestand niet lezen.'); return; }
       const key = `${this.currentDayIdx}-${this.routeType}`;
       this.gpxCache[key] = gpx;
-      // New GPX = different route data → discard any climb edits for this slot
-      localStorage.removeItem(this._climbsOverrideKey());
+      // New GPX = different route → discard stale climb edits for this slot,
+      // then auto-detect climbs on the new track. Baked defs (if any) are pinned
+      // to the OLD track's distances, so snapshot the fresh detection as the
+      // editable override to bypass them and keep it bakeable.
+      this._clearClimbEditKeys();
+      if (this._bakedClimbDefs()) {
+        this._namedClimbs = this._getNamedClimbs(gpx.climbs);
+        this._saveClimbDefs(this._materializeClimbDefs());
+      }
       // Re-render everything with new GPX
       this._namedClimbs = this._computeClimbs(gpx);
       const timedSeg = this._getTimedSegment();
@@ -1816,8 +1837,9 @@ const App = {
       MapView.showClimbMarkers(this._namedClimbs, gpx.points, idx => this._showClimbPopup(idx));
       this._enableChartSync(gpx);
       const gpxEl = document.getElementById('day-gpx-upload');
+      const nClimbs = this._namedClimbs.length;
       gpxEl.querySelector('.gpx-drop-zone p').textContent =
-        `✅ GPX vervangen (${(gpx.totalDistM/1000).toFixed(1)} km, ${gpx.totalGain} hm)`;
+        `✅ GPX vervangen (${(gpx.totalDistM/1000).toFixed(1)} km, ${gpx.totalGain} hm) — ${nClimbs} klim${nClimbs === 1 ? '' : 'men'} gedetecteerd`;
       gpxEl.querySelector('.gpx-icon').textContent = '✅';
     };
     reader.readAsText(file);
