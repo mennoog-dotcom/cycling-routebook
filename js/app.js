@@ -904,6 +904,43 @@ const App = {
     });
   },
 
+  // ─── EDITABLE SUBHEADER (theme — funName, per day) ───────────────────────
+  _subheaderKey(dayIdx) { return `subheader-${this.trip.year}-${dayIdx}`; },
+
+  _subheaderDefault(dayIdx) {
+    const day = this.trip.days[dayIdx];
+    if (!day) return '';
+    return `${day.theme || ''}${day.funName ? ' — ' + day.funName : ''}`;
+  },
+
+  // Priority: localStorage override → baked trip.js subheader → theme — funName.
+  _loadSubheader(dayIdx) {
+    const ls = localStorage.getItem(this._subheaderKey(dayIdx));
+    if (ls != null) return ls;
+    const baked = this.trip.bakedSubheader?.[dayIdx];
+    if (baked != null) return baked;
+    return this._subheaderDefault(dayIdx);
+  },
+
+  _saveSubheader(dayIdx, val) {
+    const key = this._subheaderKey(dayIdx);
+    const def = this._subheaderDefault(dayIdx);
+    const baked = this.trip.bakedSubheader?.[dayIdx];
+    if (!val || (val === def && baked == null)) localStorage.removeItem(key);
+    else localStorage.setItem(key, val);
+  },
+
+  _bindSubheaderEdit() {
+    const el = document.getElementById('day-sub-el');
+    if (!el) return;
+    el.addEventListener('blur', () => {
+      this._saveSubheader(this.currentDayIdx, el.textContent.trim());
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    });
+  },
+
   _renderDayContent(day) {
     const route = day[this.routeType === 'long' ? 'longRoute' : 'shortRoute'] || day.longRoute;
     const slot = this._slotFor(this.currentDayIdx);
@@ -914,16 +951,19 @@ const App = {
       : (stars ? `<span class="day-tough">Zwaarte ${this._starsHtml(stars)}</span>` : '');
     const routeName = this._loadRouteName(this.currentDayIdx, this.routeType) || slot.label;
     const nameAttrs = this.isEditor ? ' id="day-route-name-el" contenteditable="true" spellcheck="false" title="Klik om de etappenaam aan te passen"' : '';
+    const subheader = this._loadSubheader(this.currentDayIdx);
+    const subAttrs = this.isEditor ? ' id="day-sub-el" contenteditable="true" spellcheck="false" title="Klik om de ondertitel aan te passen"' : '';
     document.getElementById('day-header').innerHTML = `
       <div class="day-big-emoji">${this._dayIcon(day)}</div>
       <div>
-        <div class="day-theme-label">${day.theme}${day.funName ? ' — ' + day.funName : ''}</div>
+        <div class="day-theme-label${this.isEditor ? ' editable-sub' : ''}"${subAttrs}>${this._esc(subheader)}</div>
         <h2 class="day-route-name${this.isEditor ? ' editable-route' : ''}"${nameAttrs}>${this._esc(routeName)}</h2>
         <div class="day-dayname">${slot.label} · Dag ${slot.dayNum}${toughHtml ? ' · ' + toughHtml : ''}</div>
       </div>`;
     if (this.isEditor) {
       this._bindToughEdit();
       this._bindRouteNameEdit();
+      this._bindSubheaderEdit();
     }
 
     document.getElementById('day-stats').innerHTML = route ? `
@@ -1225,14 +1265,20 @@ const App = {
     const bakedStage  = {};
     const bakedLunch  = {};
     const bakedToughness = {};
+    const bakedSubheader = {};
     const saveDay = this.currentDayIdx, saveRt = this.routeType;
-    const counts = { climbs: 0, stage: 0, lunch: 0, tough: 0 };
+    const counts = { climbs: 0, stage: 0, lunch: 0, tough: 0, sub: 0 };
 
     this.trip.days.forEach((day, di) => {
       // Map lunch pin (per day) — localStorage override, else carry baked forward
       const lunchRaw = localStorage.getItem(`lunch-${y}-${di}`);
       if (lunchRaw) { try { bakedLunch[di] = JSON.parse(lunchRaw); counts.lunch++; } catch (e) {} }
       else if (this.trip.bakedLunch?.[di]) bakedLunch[di] = this.trip.bakedLunch[di];
+
+      // Subheader (theme — funName, per day)
+      const subRaw = localStorage.getItem(`subheader-${y}-${di}`);
+      if (subRaw != null) { bakedSubheader[di] = subRaw; counts.sub++; }
+      else if (this.trip.bakedSubheader?.[di] != null) bakedSubheader[di] = this.trip.bakedSubheader[di];
 
       ['long', 'short'].forEach(rt => {
         const key = `${di}-${rt}`;
@@ -1309,6 +1355,7 @@ const App = {
     if (Object.keys(bakedStage).length)  out.bakedStage  = bakedStage;
     if (Object.keys(bakedLunch).length)  out.bakedLunch  = bakedLunch;
     if (Object.keys(bakedToughness).length) out.bakedToughness = bakedToughness;
+    if (Object.keys(bakedSubheader).length) out.bakedSubheader = bakedSubheader;
 
     if (!Object.keys(out).length) {
       alert('Geen aanpassingen gevonden om te bakken.');
@@ -1325,10 +1372,10 @@ const App = {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     alert(
       `Geëxporteerd naar Downloads als bake-${y}.json.\n\n` +
-      `Klimmen: ${counts.climbs} route(s)\nEtappe-notities: ${counts.stage} route(s)\nLunch-pins: ${counts.lunch}\nZwaarte-ratings: ${counts.tough} route(s)\n` +
+      `Klimmen: ${counts.climbs} route(s)\nEtappe-notities: ${counts.stage} route(s)\nLunch-pins: ${counts.lunch}\nZwaarte-ratings: ${counts.tough} route(s)\nOndertitels: ${counts.sub}\n` +
       (bakedTitle ? 'Titel: ja\n' : '') +
       (dayOrderChanged ? 'Dagvolgorde: aangepast\n' : '') +
-      `\nVervang/voeg de bovenste eigenschappen (bakedClimbs, bakedStage, bakedLunch, bakedToughness, bakedTitle) toe in trip.js. Het JSON-bestand staat ook in de console.`
+      `\nVervang/voeg de bovenste eigenschappen (bakedClimbs, bakedStage, bakedLunch, bakedToughness, bakedSubheader, bakedTitle) toe in trip.js. Het JSON-bestand staat ook in de console.`
     );
   },
 
