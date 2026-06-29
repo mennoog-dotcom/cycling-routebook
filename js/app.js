@@ -285,15 +285,13 @@ const App = {
       <div class="stat-pill">⛰️ ${totalHm.toLocaleString()} hm</div>
       <div class="stat-pill">📍 ${this.trip.basecamp}</div>`;
 
-    this._renderWeekScore();
-
     this.overviewRouteType = 'long';
+
+    // Combined klimpunten box + climbers' ranking (collapsible)
+    this._renderClassement();
 
     // Day cards (in calendar-slot order; draggable to reorder in editor mode)
     this._renderDayCards();
-
-    // Climbers' ranking (bergklassement) for the toggled route type
-    this._renderClimbRanking();
 
     this._renderGpxDownloadHelper();
 
@@ -391,7 +389,7 @@ const App = {
       card.classList.toggle('spotlight', contentIdx != null && match);
       card.classList.toggle('dimmed', contentIdx != null && !match);
     });
-    document.querySelectorAll('#overview-ranking .rank-row').forEach(row => {
+    document.querySelectorAll('.rank-row[data-content]').forEach(row => {
       row.classList.toggle('spotlight', contentIdx != null && +row.dataset.content === contentIdx);
     });
   },
@@ -469,27 +467,7 @@ const App = {
     return { total, counts, n };
   },
 
-  _renderWeekScore() {
-    const hero = document.querySelector('.overview-hero');
-    if (!hero) return;
-    let el = document.getElementById('overview-score');
-    if (!el) { el = document.createElement('div'); el.id = 'overview-score'; el.className = 'week-score'; hero.appendChild(el); }
-
-    const ws = this._weekStats();
-    if (!ws.n) { el.innerHTML = ''; return; }
-    const order = ['HC', '1', '2', '3', '4'];
-    const badges = order.filter(k => ws.counts[k]).map(k =>
-      `<span class="week-badge cat-${k}">${ws.counts[k]}× ${ChartView.catLabel(k)}</span>`
-    ).join('');
-    el.innerHTML = `
-      <div class="week-score-head">
-        <span class="ws-pts">${ws.total}</span>
-        <span class="ws-pts-label">klimpunten · ${ws.n} cols deze week</span>
-      </div>
-      <div class="week-badges">${badges}</div>`;
-  },
-
-  // Switch the whole overview (map + cards + ranking) to a route type.
+  // Switch the whole overview (map + cards + classement) to a route type.
   _setOverviewRouteType(rt) {
     this.overviewRouteType = rt;
     const btnLong = document.getElementById('ov-btn-long');
@@ -500,15 +478,20 @@ const App = {
     MapView.stopAnimation();
     if (btnAnimate) btnAnimate.textContent = '▶ Animeer week';
     MapView.showAllRoutes(this.gpxCache, rt, this.trip);
-    this._renderDayCards();      // toughness stars depend on route type
-    this._renderClimbRanking();  // ranking depends on route type
+    this._renderDayCards();    // toughness stars depend on route type
+    this._renderClassement();  // klimpunten + ranking depend on route type
   },
 
-  // Climbers' ranking (bergklassement): every categorised climb of the toggled
-  // route type, sorted by climbing points. GPX-driven, so it adapts to edits.
-  _renderClimbRanking() {
-    const el = document.getElementById('overview-ranking');
-    if (!el) return;
+  // Combined klimpunten box + climbers' ranking (Bergklassement). The summary
+  // (points · cols · badges) is the always-visible header; clicking it expands
+  // a dropdown with the full per-climb ranking. GPX-driven and toggles with the
+  // overview long/short switch.
+  _renderClassement() {
+    const hero = document.querySelector('.overview-hero');
+    if (!hero) return;
+    let box = document.getElementById('overview-score');
+    if (!box) { box = document.createElement('div'); box.id = 'overview-score'; box.className = 'week-score'; hero.appendChild(box); }
+
     const rt = this.overviewRouteType || 'long';
     const PTS = { HC: 10, '1': 6, '2': 4, '3': 2, '4': 1 };
     const order = this._dayOrder();
@@ -535,14 +518,9 @@ const App = {
     entries.sort((a, b) => b.points - a.points ||
       (b.lengthKm * b.avgGrad * b.avgGrad) - (a.lengthKm * a.avgGrad * a.avgGrad));
     const total = entries.reduce((s, e) => s + e.points, 0);
-    const rtLabel = rt === 'long' ? 'Lange' : 'Korte';
-
-    if (!entries.length) {
-      el.innerHTML = `<div class="ranking-head"><h2>🏔️ Bergklassement</h2>
-        <span class="ranking-sub">${rtLabel} routes</span></div>
-        <div class="ranking-empty">Geen gecategoriseerde klimmen op de ${rtLabel.toLowerCase()} routes.</div>`;
-      return;
-    }
+    const n = entries.length;
+    const rtLabel = rt === 'long' ? 'lange' : 'korte';
+    const open = !!this._classementOpen;
 
     const counts = {};
     entries.forEach(e => counts[e.cat] = (counts[e.cat] || 0) + 1);
@@ -559,22 +537,31 @@ const App = {
         <span class="rank-pts">${e.points}</span>
       </div>`).join('');
 
-    el.innerHTML = `
-      <div class="ranking-head">
-        <h2>🏔️ Bergklassement</h2>
-        <span class="ranking-sub">${rtLabel} routes · ${total} klimpunten</span>
-      </div>
-      <div class="ranking-badges">${badges}</div>
-      <div class="ranking-list">
-        <div class="rank-row rank-header">
-          <span class="rank-pos">#</span><span class="rank-cat">Cat</span>
-          <span class="rank-name">Klim</span><span class="rank-day">Dag</span>
-          <span class="rank-stats">Lengte · %</span><span class="rank-pts">Pt</span>
-        </div>
-        ${rows}
-      </div>`;
+    const dropdown = n
+      ? `<div class="ranking-list">
+          <div class="rank-row rank-header">
+            <span class="rank-pos">#</span><span class="rank-cat">Cat</span>
+            <span class="rank-name">Klim</span><span class="rank-day">Dag</span>
+            <span class="rank-stats">Lengte · %</span><span class="rank-pts">Pt</span>
+          </div>
+          ${rows}
+        </div>`
+      : `<div class="ranking-empty">Geen gecategoriseerde klimmen op de ${rtLabel} routes.</div>`;
 
-    el.querySelectorAll('.rank-row[data-content]').forEach(row => {
+    box.innerHTML = `
+      <button class="ws-toggle" aria-expanded="${open}" title="Klik voor het volledige bergklassement">
+        <span class="ws-pts">${total}</span>
+        <span class="ws-pts-label">klimpunten · ${n} cols · ${rtLabel} routes</span>
+        <span class="ws-caret">${open ? '▴' : '▾'}</span>
+      </button>
+      <div class="week-badges">${badges}</div>
+      <div class="ws-dropdown${open ? ' open' : ''}">${dropdown}</div>`;
+
+    box.querySelector('.ws-toggle').addEventListener('click', () => {
+      this._classementOpen = !this._classementOpen;
+      this._renderClassement();
+    });
+    box.querySelectorAll('.rank-row[data-content]').forEach(row => {
       const idx = +row.dataset.content;
       row.addEventListener('mouseenter', () => this._spotlightDay(idx));
       row.addEventListener('mouseleave', () => this._spotlightDay(null));
