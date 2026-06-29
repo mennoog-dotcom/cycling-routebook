@@ -96,7 +96,7 @@ window.TRIP_2026 = {
       description: "Arpettaz is een absolute aanrader: rustig dorp uit, dan ineens een smalle bergweg omhoog door het bos die je nergens op voorbereidt. Tamié is de klassieke afsluiter met een abdij halverwege. Kleinere colletjes Vorger & Marais als bonus.",
       longRoute: {
         name: "Arpettaz, Vorger & Col de Tamié",
-        km: 111, hm: 2957, hmPerKm: 27, duration: null,
+        km: 114.3, hm: 2664, hmPerKm: 23, duration: null,
         strava: "https://www.strava.com/routes/3430870794761939386",
         gpxFile: "day5-long.gpx",
         cols: [
@@ -106,8 +106,8 @@ window.TRIP_2026 = {
         ]
       },
       shortRoute: {
-        name: "Arpettaz & Col du Marais",
-        km: 86.5, hm: 2211, hmPerKm: 25.6, duration: "4.8 uur",
+        name: "Vorger & Col de Tamié",
+        km: 76.9, hm: 1505, hmPerKm: 20, duration: null,
         strava: "https://www.strava.com/routes/3431355691792546734",
         gpxFile: "day5-short.gpx",
         cols: [
