@@ -223,6 +223,16 @@ h3 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: upp
 .te-clear:hover { border-color: var(--orange); color: var(--text); }
 .te-clear.active { color: var(--orange); border-color: var(--orange); }
 
+/* Editable stage/route name (editor mode) */
+.day-route-name.editable-route {
+  cursor: text; border-radius: 6px;
+  outline: 1px dashed transparent; transition: outline-color .15s, background .15s;
+}
+.day-route-name.editable-route:hover { outline-color: var(--border); }
+.day-route-name.editable-route:focus {
+  outline: 1px solid var(--orange); background: rgba(252,76,2,0.06);
+}
+
 /* Overview spotlight (hover sync with map) */
 .day-card.spotlight { border-color: var(--orange); background: #1d1d1d; }
 .day-card.dimmed { opacity: 0.32; }

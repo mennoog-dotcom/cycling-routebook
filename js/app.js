@@ -346,11 +346,11 @@ const App = {
         </div>
         ${hasRide ? `<div class="day-card-routes">
           ${L ? `<div class="day-route-row"><span class="route-badge long">Lang</span>
-            <span class="route-name-sm">${L.name}</span>
+            <span class="route-name-sm">${this._esc(this._loadRouteName(contentIdx, 'long'))}</span>
             <span class="route-stats-sm">${L.km} km · ${(L.hm||0).toLocaleString()} hm · ${L.hmPerKm} hm/km${L.duration ? ' · '+L.duration : ''}</span>
           </div>` : ''}
           ${S ? `<div class="day-route-row"><span class="route-badge short">Kort</span>
-            <span class="route-name-sm">${S.name}</span>
+            <span class="route-name-sm">${this._esc(this._loadRouteName(contentIdx, 'short'))}</span>
             <span class="route-stats-sm">${S.km} km · ${(S.hm||0).toLocaleString()} hm · ${S.hmPerKm} hm/km${S.duration ? ' · '+S.duration : ''}</span>
           </div>` : ''}
         </div>` : `<div class="day-card-rest">${day.comments || 'Rustdag'}</div>`}
@@ -787,7 +787,7 @@ const App = {
     return `<section class="print-page pr-stage">
       <header class="pr-head">
         <h1>${this._dayIcon(day)} Dag ${slot.dayNum} — ${this._esc(slot.label)} <span class="pr-rt-tag">${rtLabel}</span></h1>
-        <div class="pr-sub">${this._esc(route.name || day.theme || '')}${day.funName ? ' · ' + this._esc(day.funName) : ''}</div>
+        <div class="pr-sub">${this._esc(this._loadRouteName(dayIdx, rt) || day.theme || '')}${day.funName ? ' · ' + this._esc(day.funName) : ''}</div>
       </header>
       <div class="pr-stage-stats">
         <span><b>${route.km}</b> km</span>
@@ -866,6 +866,44 @@ const App = {
     this._bindDayEvents();
   },
 
+  // ─── EDITABLE STAGE NAME (route name per day+route type) ─────────────────
+  _routeNameKey(dayIdx, rt) { return `routename-${this.trip.year}-${dayIdx}-${rt}`; },
+
+  _routeDefaultName(dayIdx, rt) {
+    const day = this.trip.days[dayIdx];
+    const r = rt === 'long' ? day?.longRoute : day?.shortRoute;
+    return r?.name || '';
+  },
+
+  // Priority: localStorage override → baked trip.js routeName → route default.
+  _loadRouteName(dayIdx, rt) {
+    const ls = localStorage.getItem(this._routeNameKey(dayIdx, rt));
+    if (ls != null) return ls;
+    const baked = this.trip.bakedStage?.[`${dayIdx}-${rt}`]?.routeName;
+    if (baked != null) return baked;
+    return this._routeDefaultName(dayIdx, rt);
+  },
+
+  _saveRouteName(dayIdx, rt, val) {
+    const key = this._routeNameKey(dayIdx, rt);
+    const def = this._routeDefaultName(dayIdx, rt);
+    const baked = this.trip.bakedStage?.[`${dayIdx}-${rt}`]?.routeName;
+    // Clear the override when it matches the default and there's no baked name
+    if (!val || (val === def && baked == null)) localStorage.removeItem(key);
+    else localStorage.setItem(key, val);
+  },
+
+  _bindRouteNameEdit() {
+    const el = document.getElementById('day-route-name-el');
+    if (!el) return;
+    el.addEventListener('blur', () => {
+      this._saveRouteName(this.currentDayIdx, this.routeType, el.textContent.trim());
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    });
+  },
+
   _renderDayContent(day) {
     const route = day[this.routeType === 'long' ? 'longRoute' : 'shortRoute'] || day.longRoute;
     const slot = this._slotFor(this.currentDayIdx);
@@ -874,14 +912,19 @@ const App = {
     const toughHtml = this.isEditor
       ? `<span class="day-tough">Zwaarte ${this._editableStarsHtml(this.currentDayIdx, this.routeType)}</span>`
       : (stars ? `<span class="day-tough">Zwaarte ${this._starsHtml(stars)}</span>` : '');
+    const routeName = this._loadRouteName(this.currentDayIdx, this.routeType) || slot.label;
+    const nameAttrs = this.isEditor ? ' id="day-route-name-el" contenteditable="true" spellcheck="false" title="Klik om de etappenaam aan te passen"' : '';
     document.getElementById('day-header').innerHTML = `
       <div class="day-big-emoji">${this._dayIcon(day)}</div>
       <div>
         <div class="day-theme-label">${day.theme}${day.funName ? ' — ' + day.funName : ''}</div>
-        <h2 class="day-route-name">${route?.name || slot.label}</h2>
+        <h2 class="day-route-name${this.isEditor ? ' editable-route' : ''}"${nameAttrs}>${this._esc(routeName)}</h2>
         <div class="day-dayname">${slot.label} · Dag ${slot.dayNum}${toughHtml ? ' · ' + toughHtml : ''}</div>
       </div>`;
-    if (this.isEditor) this._bindToughEdit();
+    if (this.isEditor) {
+      this._bindToughEdit();
+      this._bindRouteNameEdit();
+    }
 
     document.getElementById('day-stats').innerHTML = route ? `
       <div class="stat-box"><div class="stat-value">${route.km}</div><div class="stat-label">km</div></div>
@@ -1223,9 +1266,13 @@ const App = {
           }
         }
 
-        // ── Stage notes (description / timed segment / coffee-lunch) ──
+        // ── Stage notes (route name / description / timed segment / coffee-lunch) ──
         const bs = this.trip.bakedStage?.[key] || {};
         const entry = {};
+        const lsName = localStorage.getItem(`routename-${y}-${di}-${rt}`);
+        if (lsName != null) entry.routeName = lsName;
+        else if (bs.routeName != null) entry.routeName = bs.routeName;
+
         const lsDesc = localStorage.getItem(`stagedesc-${y}-${di}-${rt}`);
         if (lsDesc != null) entry.description = lsDesc;
         else if (bs.description != null) entry.description = bs.description;
