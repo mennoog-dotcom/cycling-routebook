@@ -105,6 +105,57 @@ const MapView = {
     if (hasData) {
       this.map.fitBounds(bounds, { padding: 50, pitch: 50, bearing: -15, duration: 1200 });
     }
+    this._attachOverviewHover();
+  },
+
+  // Spotlight one day's route (by content index); dim the rest. null = reset all.
+  highlightOverviewRoute(activeIdx) {
+    if (!this._ready) return;
+    this._overviewLayerIds.forEach(srcId => {
+      const dayIdx = +srcId.split('-')[1];
+      const active = activeIdx == null || dayIdx === activeIdx;
+      try {
+        this.map.setPaintProperty(`${srcId}-line`, 'line-opacity', active ? 1 : 0.15);
+        this.map.setPaintProperty(`${srcId}-glow`, 'line-opacity', active ? 0.65 : 0.05);
+        this.map.setPaintProperty(`${srcId}-startdot`, 'circle-opacity', active ? 1 : 0.2);
+        this.map.setPaintProperty(`${srcId}-startdot`, 'circle-stroke-opacity', active ? 1 : 0.2);
+      } catch (e) {}
+    });
+    // Raise the active route above the others for a clean spotlight
+    if (activeIdx != null) {
+      try { if (this.map.getLayer(`ov-${activeIdx}-line`)) this.map.moveLayer(`ov-${activeIdx}-line`); } catch (e) {}
+    }
+  },
+
+  // Register hover/click handlers for overview route lines. Handlers persist
+  // across route-type switches; re-attached whenever the layers are rebuilt.
+  enableOverviewHover(handlers) {
+    this._ovHoverHandlers = handlers;
+    this._attachOverviewHover();
+  },
+
+  _attachOverviewHover() {
+    this._detachOverviewHover();
+    const h = this._ovHoverHandlers;
+    if (!h || !this._ready) return;
+    this._ovHoverBindings = [];
+    this._overviewLayerIds.forEach(srcId => {
+      const dayIdx = +srcId.split('-')[1];
+      const line = `${srcId}-line`;
+      if (!this.map.getLayer(line)) return;
+      const enter = () => { this.map.getCanvas().style.cursor = 'pointer'; h.onEnter && h.onEnter(dayIdx); };
+      const leave = () => { this.map.getCanvas().style.cursor = ''; h.onLeave && h.onLeave(dayIdx); };
+      const click = () => { h.onClick && h.onClick(dayIdx); };
+      this.map.on('mouseenter', line, enter);
+      this.map.on('mouseleave', line, leave);
+      this.map.on('click', line, click);
+      this._ovHoverBindings.push(['mouseenter', line, enter], ['mouseleave', line, leave], ['click', line, click]);
+    });
+  },
+
+  _detachOverviewHover() {
+    (this._ovHoverBindings || []).forEach(([t, l, f]) => { try { this.map.off(t, l, f); } catch (e) {} });
+    this._ovHoverBindings = [];
   },
 
   // ── Static map snapshots for the printable roadbook ───────────────────────
@@ -482,6 +533,7 @@ const MapView = {
 
   _clearOverviewRoutes() {
     this.stopAnimation();
+    this._detachOverviewHover();
     this._overviewLayerIds.forEach(srcId => {
       [`${srcId}-glow`, `${srcId}-line`, `${srcId}-startdot`].forEach(lid => {
         try { if (this.map.getLayer(lid)) this.map.removeLayer(lid); } catch(e) {}

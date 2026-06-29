@@ -183,6 +183,76 @@ h3 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: upp
 .day-theme { font-size: .74rem; color: var(--orange); font-weight: 600; }
 .day-card-arrow { color: var(--muted); font-size: 1.3rem; }
 .day-card-rest { font-size: .83rem; color: var(--muted); padding-left: 2px; }
+.day-card-right { display: flex; align-items: center; gap: 8px; }
+
+/* Custom day icon (e.g. Tour de France yellow jersey) */
+.day-svg-icon { display: inline-flex; align-items: center; }
+.day-svg-icon svg { height: 1.5rem; width: auto; display: block; }
+.day-big-emoji .day-svg-icon svg { height: 2.4rem; }
+
+/* Toughness star rating */
+.tough-stars {
+  position: relative; display: inline-block; white-space: nowrap;
+  font-size: .82rem; line-height: 1; letter-spacing: 1px; vertical-align: middle;
+}
+.tough-stars-bg { color: #3a3a3a; }
+.tough-stars-fg {
+  position: absolute; left: 0; top: 0; overflow: hidden;
+  color: #f5b301; white-space: nowrap;
+}
+.day-tough { color: var(--muted); }
+.day-tough .tough-stars { font-size: .9rem; }
+
+/* Overview spotlight (hover sync with map) */
+.day-card.spotlight { border-color: var(--orange); background: #1d1d1d; }
+.day-card.dimmed { opacity: 0.32; }
+.day-card.rest-day.dimmed { opacity: 0.16; }
+
+/* Climbers' ranking (bergklassement) */
+.overview-ranking { margin-top: 14px; }
+.ranking-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.ranking-head h2 { margin: 0; font-size: 1.05rem; }
+.ranking-sub { font-size: .76rem; color: var(--muted); }
+.ranking-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ranking-empty { font-size: .82rem; color: var(--muted); padding: 8px 2px; }
+.ranking-list {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg2); overflow: hidden;
+}
+.rank-row {
+  display: grid;
+  grid-template-columns: 24px 50px 1fr 34px auto 30px;
+  align-items: center; gap: 8px;
+  padding: 7px 10px; font-size: .8rem;
+  border-top: 1px solid var(--border);
+  cursor: pointer; transition: background .12s;
+}
+.rank-row:first-child { border-top: none; }
+.rank-row:not(.rank-header):hover, .rank-row.spotlight { background: #1d1d1d; }
+.rank-header {
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); cursor: default; background: rgba(255,255,255,0.02);
+}
+.rank-pos { font-weight: 800; color: var(--muted); text-align: center; }
+.rank-cat {
+  font-size: .66rem; font-weight: 800; color: #fff; text-align: center;
+  padding: 2px 0; border-radius: 4px;
+}
+.rank-header .rank-cat { background: none; color: var(--muted); }
+.rank-cat.cat-HC { background: #7c3aed; }
+.rank-cat.cat-1  { background: #dc2626; }
+.rank-cat.cat-2  { background: #ea580c; }
+.rank-cat.cat-3  { background: #ca8a04; }
+.rank-cat.cat-4  { background: #16a34a; }
+.rank-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-day {
+  font-size: .66rem; font-weight: 800; text-align: center; color: #fff;
+  background: var(--day-color, #555); border-radius: 4px; padding: 2px 0;
+}
+.rank-header .rank-day { background: none; color: var(--muted); }
+.rank-stats { font-size: .72rem; color: var(--muted); white-space: nowrap; text-align: right; }
+.rank-pts { font-weight: 800; color: var(--orange); text-align: right; }
+.rank-header .rank-pts { color: var(--muted); font-weight: 600; }
 
 .day-card-routes { display: flex; flex-direction: column; gap: 6px; }
 .day-route-row {

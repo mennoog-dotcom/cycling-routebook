@@ -264,6 +264,27 @@ const ChartView = {
     el.innerHTML = this.climbProfileSVG(climb);
   },
 
+  // Build a smooth path through [x,y] points using a Catmull-Rom spline
+  // converted to cubic béziers. Removes the jagged "shaky hand" look that raw
+  // GPS track points produce.
+  _smoothPath(pts) {
+    if (!pts.length) return '';
+    if (pts.length < 3) return pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ');
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] || p2;
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+      const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+      const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+      d += ` C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2[0].toFixed(2)},${p2[1].toFixed(2)}`;
+    }
+    return d;
+  },
+
   // Build the climb profile as a standalone SVG string (reused by the popup,
   // the hero card and the printable roadbook).
   climbProfileSVG(climb) {
@@ -304,8 +325,18 @@ const ChartView = {
       buckets.push({ startKm: s, endKm: e0, widthKm: w, grad, col: this._gradColor(grad) });
     }
 
-    // Elevation silhouette (also used as a clip mask for the colour fills)
-    const linePts = cpts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.distKm)},${y(p.ele)}`).join(' ');
+    // Elevation silhouette — resample at even spacing + moving-average to kill
+    // GPS jitter, then draw as a smooth spline (climbfinder-style clean line).
+    const N = Math.max(16, Math.min(160, Math.round(maxD * 14)));
+    const sampled = [];
+    for (let k = 0; k <= N; k++) sampled.push({ d: maxD * k / N, e: eleAt(maxD * k / N) });
+    const win = 2;
+    const smooth = sampled.map((p, i) => {
+      let sum = 0, c = 0;
+      for (let j = Math.max(0, i - win); j <= Math.min(sampled.length - 1, i + win); j++) { sum += sampled[j].e; c++; }
+      return [x(p.d), y(sum / c)];
+    });
+    const linePts = this._smoothPath(smooth);
     const fillPath = `${linePts} L${W},${H} L0,${H} Z`;
     const uid = 'cp' + Math.random().toString(36).slice(2, 8);
 

@@ -139,6 +139,56 @@ const App = {
     this._renderDayCards();
   },
 
+  // Icon for a day: custom inline SVG (e.g. the Tour de France yellow jersey
+  // for the day we visit the race) with the emoji as fallback.
+  _dayIcon(day) {
+    if (day && day.icon === 'jersey-yellow') {
+      return `<span class="day-svg-icon" title="Maillot Jaune — we bezoeken de Tour vandaag" aria-label="Gele trui">` +
+        `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img">` +
+        `<path d="M8.6 2.5 3.2 5.4 5 9.6l2.2-1.1V21.2h9.6V8.5L19 9.6l1.8-4.2-5.4-2.9a3.4 3.4 0 0 1-6.8 0Z" ` +
+        `fill="#FFD400" stroke="#d9a400" stroke-width="0.7" stroke-linejoin="round"/>` +
+        `<path d="M8.6 2.5a3.4 3.4 0 0 0 6.8 0" fill="none" stroke="#d9a400" stroke-width="0.7"/>` +
+        `<rect x="10.4" y="12" width="3.2" height="5.2" rx="0.4" fill="#111" opacity="0.18"/>` +
+        `</svg></span>`;
+    }
+    return day?.emoji || '';
+  },
+
+  // ─── TOUGHNESS RATING (1–5 stars) ────────────────────────────────────────
+  // GPX-driven so it adapts automatically when routes change. Raw effort =
+  // elevation gain + 10 per km. Stars are scaled within each route pool (long /
+  // short) so the hardest long route AND the hardest short route both hit 5★.
+  _routeRaw(dayIdx, routeType) {
+    const gpx = this.gpxCache[`${dayIdx}-${routeType}`];
+    if (gpx && gpx.totalDistM) return gpx.totalGain + (gpx.totalDistM / 1000) * 10;
+    const day = this.trip.days[dayIdx];
+    const r = routeType === 'long' ? day?.longRoute : day?.shortRoute;
+    return r ? (r.hm || 0) + (r.km || 0) * 10 : 0;
+  },
+
+  _maxRouteRaw(routeType) {
+    let m = 0;
+    this.trip.days.forEach((d, i) => { const r = this._routeRaw(i, routeType); if (r > m) m = r; });
+    return m || 1;
+  },
+
+  _toughnessStars(dayIdx, routeType) {
+    const raw = this._routeRaw(dayIdx, routeType);
+    if (!raw) return 0;
+    let s = raw / this._maxRouteRaw(routeType) * 5;
+    s = Math.round(s * 2) / 2;
+    return Math.min(5, Math.max(0.5, s));
+  },
+
+  _starsHtml(stars, extraClass = '') {
+    if (!stars) return '';
+    const pct = (stars / 5) * 100;
+    const label = (Number.isInteger(stars) ? stars : stars.toFixed(1)).toString().replace('.', ',');
+    return `<span class="tough-stars ${extraClass}" title="Zwaarte ${label} / 5">` +
+      `<span class="tough-stars-bg">★★★★★</span>` +
+      `<span class="tough-stars-fg" style="width:${pct}%">★★★★★</span></span>`;
+  },
+
   _renderOverview() {
     this._showScreen('overview');
     this._setupNav('Fietsweek ' + this.trip.year, () => this._renderHome());
@@ -174,8 +224,13 @@ const App = {
 
     this._renderWeekScore();
 
+    this.overviewRouteType = 'long';
+
     // Day cards (in calendar-slot order; draggable to reorder in editor mode)
     this._renderDayCards();
+
+    // Climbers' ranking (bergklassement) for the toggled route type
+    this._renderClimbRanking();
 
     this._renderGpxDownloadHelper();
 
@@ -186,12 +241,17 @@ const App = {
     if (bakeBtn) bakeBtn.onclick = () => this._exportBaked();
 
     // Map: init then show all routes
-    this.overviewRouteType = 'long';
     MapView.init('overview-map', this.trip.center, this.trip.defaultZoom);
     MapView.map.on('load', () => {
       MapView.showAllRoutes(this.gpxCache, this.overviewRouteType, this.trip);
     });
     this._bindOverviewMapEvents();
+    // Hover/click a route on the map → spotlight its card, open the day on click
+    MapView.enableOverviewHover({
+      onEnter: idx => this._spotlightDay(idx),
+      onLeave: () => this._spotlightDay(null),
+      onClick: idx => this.openDay(idx, this.overviewRouteType)
+    });
   },
 
   _renderDayCards() {
@@ -199,25 +259,29 @@ const App = {
     const order = this._dayOrder();
     const reordered = order.some((c, p) => c !== p);
 
+    const rt = this.overviewRouteType || 'long';
     const html = order.map((contentIdx, pos) => {
       const day  = this.trip.days[contentIdx];  // ride content
       const slot = this.trip.days[pos];          // calendar identity for this slot
       const hasRide = !!(day.longRoute || day.shortRoute);
       const L = day.longRoute, S = day.shortRoute;
       const dotColor = MapView.DAY_COLORS[contentIdx] || '#FC4C02';
-      const dragAttrs = ed ? `draggable="true" data-pos="${pos}" data-content="${contentIdx}"` : '';
+      const dragAttrs = ed ? `draggable="true" data-pos="${pos}"` : '';
       const click = hasRide ? `onclick="App.openDay(${contentIdx})"` : '';
-      return `<div class="day-card ${hasRide ? 'clickable' : 'rest-day'}${ed ? ' draggable-card' : ''}" ${dragAttrs} ${click}>
+      // Toughness for the toggled route type, falling back to the day's other route
+      const starRt = (rt === 'short' ? S : L) ? rt : (L ? 'long' : 'short');
+      const stars = hasRide ? this._toughnessStars(contentIdx, starRt) : 0;
+      return `<div class="day-card ${hasRide ? 'clickable' : 'rest-day'}${ed ? ' draggable-card' : ''}" data-content="${contentIdx}" ${dragAttrs} ${click}>
         <div class="day-card-top">
           <div class="day-card-left">
             ${ed ? '<span class="day-drag-handle" title="Sleep om dagen te wisselen">⠿ sleep</span>' : ''}
-            <div class="day-card-emoji" style="${hasRide ? `border-left: 3px solid ${dotColor}; padding-left:6px` : ''}">${day.emoji}</div>
+            <div class="day-card-emoji" style="${hasRide ? `border-left: 3px solid ${dotColor}; padding-left:6px` : ''}">${this._dayIcon(day)}</div>
             <div class="day-card-label">
               <span class="day-name">Dag ${slot.dayNum} · ${slot.label}</span>
               <span class="day-theme">${day.theme}</span>
             </div>
           </div>
-          ${hasRide ? '<div class="day-card-arrow">›</div>' : ''}
+          ${hasRide ? `<div class="day-card-right">${this._starsHtml(stars)}<span class="day-card-arrow">›</span></div>` : ''}
         </div>
         ${hasRide ? `<div class="day-card-routes">
           ${L ? `<div class="day-route-row"><span class="route-badge long">Lang</span>
@@ -241,6 +305,32 @@ const App = {
 
     document.getElementById('overview-days').innerHTML = editorHint + html;
     if (ed) this._bindDayReorder();
+    this._bindDayCardHover();
+  },
+
+  // Hover a day card → spotlight its route on the map and dim the others.
+  _bindDayCardHover() {
+    const container = document.getElementById('overview-days');
+    if (!container) return;
+    container.querySelectorAll('.day-card[data-content]').forEach(card => {
+      const idx = +card.dataset.content;
+      card.addEventListener('mouseenter', () => this._spotlightDay(idx));
+      card.addEventListener('mouseleave', () => this._spotlightDay(null));
+    });
+  },
+
+  // Single source of truth for the overview spotlight: highlights one day's
+  // route on the map and the matching card(s) in the list. Pass null to clear.
+  _spotlightDay(contentIdx) {
+    MapView.highlightOverviewRoute(contentIdx);
+    document.querySelectorAll('#overview-days .day-card[data-content]').forEach(card => {
+      const match = +card.dataset.content === contentIdx;
+      card.classList.toggle('spotlight', contentIdx != null && match);
+      card.classList.toggle('dimmed', contentIdx != null && !match);
+    });
+    document.querySelectorAll('#overview-ranking .rank-row').forEach(row => {
+      row.classList.toggle('spotlight', contentIdx != null && +row.dataset.content === contentIdx);
+    });
   },
 
   _bindDayReorder() {
@@ -336,23 +426,105 @@ const App = {
       <div class="week-badges">${badges}</div>`;
   },
 
+  // Switch the whole overview (map + cards + ranking) to a route type.
+  _setOverviewRouteType(rt) {
+    this.overviewRouteType = rt;
+    const btnLong = document.getElementById('ov-btn-long');
+    const btnShort = document.getElementById('ov-btn-short');
+    const btnAnimate = document.getElementById('ov-btn-animate');
+    btnLong?.classList.toggle('active', rt === 'long');
+    btnShort?.classList.toggle('active', rt === 'short');
+    MapView.stopAnimation();
+    if (btnAnimate) btnAnimate.textContent = '▶ Animeer week';
+    MapView.showAllRoutes(this.gpxCache, rt, this.trip);
+    this._renderDayCards();      // toughness stars depend on route type
+    this._renderClimbRanking();  // ranking depends on route type
+  },
+
+  // Climbers' ranking (bergklassement): every categorised climb of the toggled
+  // route type, sorted by climbing points. GPX-driven, so it adapts to edits.
+  _renderClimbRanking() {
+    const el = document.getElementById('overview-ranking');
+    if (!el) return;
+    const rt = this.overviewRouteType || 'long';
+    const PTS = { HC: 10, '1': 6, '2': 4, '3': 2, '4': 1 };
+    const order = this._dayOrder();
+    const entries = [];
+
+    this.trip.days.forEach((day, idx) => {
+      const hasRoute = rt === 'long' ? day.longRoute : day.shortRoute;
+      if (!hasRoute) return;
+      const slot = this.trip.days[order.indexOf(idx)] || day;
+      this._climbsForDay(idx, rt).forEach(c => {
+        const cat = this._climbCategory(c);
+        if (!cat) return;
+        entries.push({
+          idx, cat, points: PTS[cat] || 0,
+          name: c.colName || 'Naamloze klim',
+          lengthKm: c.lengthKm || 0, avgGrad: c.avgGrad || 0,
+          slotLabel: slot.label,
+          slotShort: (slot.id || '').replace(/^(\w)(\w).*/, (m, a, b) => a.toUpperCase() + b),
+          color: MapView.DAY_COLORS[idx] || '#FC4C02'
+        });
+      });
+    });
+
+    entries.sort((a, b) => b.points - a.points ||
+      (b.lengthKm * b.avgGrad * b.avgGrad) - (a.lengthKm * a.avgGrad * a.avgGrad));
+    const total = entries.reduce((s, e) => s + e.points, 0);
+    const rtLabel = rt === 'long' ? 'Lange' : 'Korte';
+
+    if (!entries.length) {
+      el.innerHTML = `<div class="ranking-head"><h2>🏔️ Bergklassement</h2>
+        <span class="ranking-sub">${rtLabel} routes</span></div>
+        <div class="ranking-empty">Geen gecategoriseerde klimmen op de ${rtLabel.toLowerCase()} routes.</div>`;
+      return;
+    }
+
+    const counts = {};
+    entries.forEach(e => counts[e.cat] = (counts[e.cat] || 0) + 1);
+    const badges = ['HC', '1', '2', '3', '4'].filter(k => counts[k]).map(k =>
+      `<span class="week-badge cat-${k}">${counts[k]}× ${ChartView.catLabel(k)}</span>`).join('');
+
+    const rows = entries.map((e, i) => `
+      <div class="rank-row" data-content="${e.idx}" onclick="App.openDay(${e.idx}, '${rt}')" title="Open ${this._esc(e.slotLabel)}">
+        <span class="rank-pos">${i + 1}</span>
+        <span class="rank-cat cat-${e.cat}">${ChartView.catLabel(e.cat)}</span>
+        <span class="rank-name">${this._esc(e.name)}</span>
+        <span class="rank-day" style="--day-color:${e.color}">${e.slotShort}</span>
+        <span class="rank-stats">${e.lengthKm.toFixed(1)} km · ${e.avgGrad}%</span>
+        <span class="rank-pts">${e.points}</span>
+      </div>`).join('');
+
+    el.innerHTML = `
+      <div class="ranking-head">
+        <h2>🏔️ Bergklassement</h2>
+        <span class="ranking-sub">${rtLabel} routes · ${total} klimpunten</span>
+      </div>
+      <div class="ranking-badges">${badges}</div>
+      <div class="ranking-list">
+        <div class="rank-row rank-header">
+          <span class="rank-pos">#</span><span class="rank-cat">Cat</span>
+          <span class="rank-name">Klim</span><span class="rank-day">Dag</span>
+          <span class="rank-stats">Lengte · %</span><span class="rank-pts">Pt</span>
+        </div>
+        ${rows}
+      </div>`;
+
+    el.querySelectorAll('.rank-row[data-content]').forEach(row => {
+      const idx = +row.dataset.content;
+      row.addEventListener('mouseenter', () => this._spotlightDay(idx));
+      row.addEventListener('mouseleave', () => this._spotlightDay(null));
+    });
+  },
+
   _bindOverviewMapEvents() {
     const btnLong    = document.getElementById('ov-btn-long');
     const btnShort   = document.getElementById('ov-btn-short');
     const btnAnimate = document.getElementById('ov-btn-animate');
 
-    btnLong.onclick = () => {
-      this.overviewRouteType = 'long';
-      btnLong.classList.add('active'); btnShort.classList.remove('active');
-      MapView.stopAnimation(); btnAnimate.textContent = '▶ Animeer week';
-      MapView.showAllRoutes(this.gpxCache, 'long', this.trip);
-    };
-    btnShort.onclick = () => {
-      this.overviewRouteType = 'short';
-      btnShort.classList.add('active'); btnLong.classList.remove('active');
-      MapView.stopAnimation(); btnAnimate.textContent = '▶ Animeer week';
-      MapView.showAllRoutes(this.gpxCache, 'short', this.trip);
-    };
+    btnLong.onclick  = () => this._setOverviewRouteType('long');
+    btnShort.onclick = () => this._setOverviewRouteType('short');
     btnAnimate.onclick = () => {
       if (MapView._isAnimating) {
         MapView.stopAnimation();
@@ -564,7 +736,7 @@ const App = {
 
     return `<section class="print-page pr-stage">
       <header class="pr-head">
-        <h1>${day.emoji || ''} Dag ${slot.dayNum} — ${this._esc(slot.label)} <span class="pr-rt-tag">${rtLabel}</span></h1>
+        <h1>${this._dayIcon(day)} Dag ${slot.dayNum} — ${this._esc(slot.label)} <span class="pr-rt-tag">${rtLabel}</span></h1>
         <div class="pr-sub">${this._esc(route.name || day.theme || '')}${day.funName ? ' · ' + this._esc(day.funName) : ''}</div>
       </header>
       <div class="pr-stage-stats">
@@ -609,9 +781,14 @@ const App = {
 
   // ─── DAY PAGE ────────────────────────────────────────────────────────────
 
-  openDay(idx) {
+  openDay(idx, routeType) {
     this.currentDayIdx = idx;
-    this.routeType = 'long';
+    const day = this.trip.days[idx];
+    // Honour the requested route type when it exists for this day, else fall back
+    this.routeType = (routeType === 'short' && day?.shortRoute) ? 'short'
+      : (routeType === 'long' && day?.longRoute) ? 'long'
+      : (day?.longRoute ? 'long' : 'short');
+    MapView.highlightOverviewRoute(null);
     // Ensure this day's GPX is parsed (already done in loadAllBundledGpx, but safe to call again)
     this._loadBundledGpx(idx);
     this._renderDay();
@@ -643,12 +820,13 @@ const App = {
     const route = day[this.routeType === 'long' ? 'longRoute' : 'shortRoute'] || day.longRoute;
     const slot = this._slotFor(this.currentDayIdx);
 
+    const stars = this._toughnessStars(this.currentDayIdx, this.routeType);
     document.getElementById('day-header').innerHTML = `
-      <div class="day-big-emoji">${day.emoji}</div>
+      <div class="day-big-emoji">${this._dayIcon(day)}</div>
       <div>
         <div class="day-theme-label">${day.theme}${day.funName ? ' — ' + day.funName : ''}</div>
         <h2 class="day-route-name">${route?.name || slot.label}</h2>
-        <div class="day-dayname">${slot.label} · Dag ${slot.dayNum}</div>
+        <div class="day-dayname">${slot.label} · Dag ${slot.dayNum}${stars ? ' · <span class="day-tough">Zwaarte ' + this._starsHtml(stars) + '</span>' : ''}</div>
       </div>`;
 
     document.getElementById('day-stats').innerHTML = route ? `

@@ -30,7 +30,7 @@ window.TRIP_2025 = {
       id: "zo", label: "Zondag", dayNum: 2,
       theme: "Dagje Tour",
       funName: "Col du Solaison",
-      emoji: "🚗",
+      emoji: "🚗", icon: "jersey-yellow",
       description: "Eerste echte bergdag. Col du Solaison is geen bekende naam maar wel een absolute pareltje — steil, bos, uitzicht over het Aravis-gebergte. Evt. Glières erbij mocht de goesting hoog zijn.",
       longRoute: {
         name: "Dagje Tour: Col du Solaison",
