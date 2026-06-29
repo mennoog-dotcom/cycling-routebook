@@ -1,6 +1,6 @@
-window.TRIP_2025 = {
-  year: 2025,
-  destination: "Haute-Savoie, France",
+window.TRIP_2026 = {
+  year: 2026,
+  destination: "Annecy, France",
   basecamp: "Annecy regio",
   center: [6.35, 45.75],
   defaultZoom: 10,
