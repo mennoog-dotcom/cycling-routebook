@@ -204,10 +204,10 @@ h3 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: upp
 .day-tough .tough-stars { font-size: .9rem; }
 
 /* Editable toughness stars (editor mode) */
-.tough-edit { display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; }
+.tough-edit { display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; cursor: pointer; }
 .te-star {
   position: relative; display: inline-block; width: 1em; height: 1em;
-  font-size: 1.05rem; line-height: 1;
+  font-size: 1.5rem; line-height: 1; cursor: pointer;
 }
 .te-bg { color: #3a3a3a; }
 .te-fill { position: absolute; left: 0; top: 0; overflow: hidden; color: #f5b301; white-space: nowrap; }
