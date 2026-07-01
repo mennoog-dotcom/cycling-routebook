@@ -20,7 +20,7 @@ crons = ["*/30 * * * *"]
 
 [vars]
 # Public — safe to commit. From strava.com -> Settings -> My API Application.
-STRAVA_CLIENT_ID = "REPLACE_WITH_CLIENT_ID"
+STRAVA_CLIENT_ID = "32156"
 # The Worker's own callback URL. After the first `wrangler deploy` you'll get a
 # https://kom-sync.<your-subdomain>.workers.dev URL — put it here (+ /auth/callback)
 # and set the same domain as the Strava app's "Authorization Callback Domain".
