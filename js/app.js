@@ -17,18 +17,16 @@ const App = {
   },
 
   // ─── EDITOR MODE ─────────────────────────────────────────────────────────
-  // Only the owner edits. ?edit=1 unlocks editing and remembers it (localStorage);
-  // ?edit=0 locks it again. Visitors never see editing controls. This is a UI
-  // gate, not security — a static site has no backend, so a visitor's changes
-  // only ever touch their own browser's localStorage and never the shared site.
+  // Editing is URL-only: it is unlocked ONLY when the current URL has ?edit=1,
+  // and is never persisted. So the normal link is always fully read-only for
+  // everyone — no drag-to-reorder, no editable text fields, no editor buttons.
+  // The owner adds ?edit=1 to the URL to edit. This is a UI gate, not security:
+  // a static site has no backend, so any change only touches that browser.
   _initEditorMode() {
     const params = new URLSearchParams(location.search);
-    if (params.has('edit')) {
-      const on = params.get('edit') !== '0';
-      if (on) localStorage.setItem('editor', '1');
-      else localStorage.removeItem('editor');
-    }
-    this.isEditor = localStorage.getItem('editor') === '1';
+    this.isEditor = params.get('edit') === '1';
+    // Remove the legacy persisted flag from older builds so it can't "stick".
+    localStorage.removeItem('editor');
     document.documentElement.classList.toggle('editor', this.isEditor);
   },
 
@@ -2069,6 +2067,16 @@ const App = {
   _renderCompetition() {
     this._showScreen('competition');
     this._setupNav('Klassement', () => this._renderOverview());
+    // Pull live standings from the backend if configured (once per open).
+    if (this.competition?.backendUrl && !this._standingsFetched) {
+      this._standingsFetched = true;
+      fetch(`${this.competition.backendUrl}/standings`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && data.stageResults) { this.competition.standings = data; this._renderCompetition(); }
+        })
+        .catch(() => {});
+    }
     const el = document.getElementById('competition-content');
     const comp = this.competition;
     const s = this._computeStandings();
@@ -2123,7 +2131,7 @@ const App = {
       </div>`;
     }).join('');
 
-    const connectUrl = comp.connectUrl || null;
+    const connectUrl = comp.backendUrl ? `${comp.backendUrl}/auth/start` : (comp.connectUrl || null);
     const connectBtn = connectUrl
       ? `<a href="${connectUrl}" class="comp-connect">🔗 Koppel je Strava</a>`
       : `<button class="comp-connect disabled" title="Beschikbaar zodra de Strava-koppeling live is" onclick="alert('De Strava-koppeling komt eraan. Zodra de backend live staat kun je hier je Strava verbinden en worden je tijden automatisch opgehaald.')">🔗 Koppel je Strava</button>`;

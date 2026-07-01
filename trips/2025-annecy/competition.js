@@ -15,6 +15,11 @@ window.COMPETITION_2026 = {
   tripEnd:   "2026-07-24",
   pointsScale: [10, 8, 6, 5, 4, 3, 2, 1],
 
+  // Set to the deployed Cloudflare Worker URL to go live (see worker/README.md).
+  // When set: the tab fetches <backendUrl>/standings and the Connect button
+  // links to <backendUrl>/auth/start. null = use the sample standings below.
+  backendUrl: null,
+
   // slot = index into the (calendar-ordered) week. Di (slot 3) is the rest day.
   stages: [
     { slot: 0, date: "2026-07-18", label: "Huisklim",           segLong: 17783115, segShort: 17783115 },

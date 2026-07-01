@@ -1,0 +1,32 @@
+# Cloudflare Worker: Strava KOM sync for the cycling routebook.
+# Deploy:  cd worker && npm i -g wrangler && wrangler login && wrangler deploy
+# See README.md for the full setup (KV namespace, Strava app, secret).
+
+name = "kom-sync"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# KV holds each rider's refresh token + the computed standings.
+# Create it once with:  wrangler kv namespace create KOM
+# then paste the returned id below.
+[[kv_namespaces]]
+binding = "KOM"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Pull fresh times automatically. Every 30 min is plenty; Strava's rate limit
+# is 200 req / 15 min. Adjust or remove outside the trip week.
+[triggers]
+crons = ["*/30 * * * *"]
+
+[vars]
+# Public — safe to commit. From strava.com -> Settings -> My API Application.
+STRAVA_CLIENT_ID = "REPLACE_WITH_CLIENT_ID"
+# The Worker's own callback URL. After the first `wrangler deploy` you'll get a
+# https://kom-sync.<your-subdomain>.workers.dev URL — put it here (+ /auth/callback)
+# and set the same domain as the Strava app's "Authorization Callback Domain".
+REDIRECT_URI = "https://kom-sync.REPLACE.workers.dev/auth/callback"
+# Your GitHub Pages origin, for CORS on /standings.
+ALLOW_ORIGIN = "https://mennoog-dotcom.github.io"
+
+# Secret (NOT here) — set with:  wrangler secret put STRAVA_CLIENT_SECRET
+# Optional: wrangler secret put SYNC_KEY   (to protect the manual /sync trigger)
