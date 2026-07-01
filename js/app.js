@@ -11,6 +11,7 @@ const App = {
     this._initEditorMode();
     this._applyTheme();
     document.getElementById('btn-theme')?.addEventListener('click', () => this._toggleTheme());
+    document.getElementById('btn-competition')?.addEventListener('click', () => { if (this.trip) this._renderCompetition(); });
     this._renderHome();
     this._bindHomeEvents();
   },
@@ -82,6 +83,8 @@ const App = {
   loadTrip(year) {
     this.trip = window[`TRIP_${year}`];
     if (!this.trip) return;
+    this.competition = window[`COMPETITION_${year}`] || null;
+    document.getElementById('btn-competition').style.display = this.competition ? '' : 'none';
     this.gpxCache = {};
     this._loadAllBundledGpx();
     this._renderOverview();
@@ -1992,6 +1995,168 @@ const App = {
   },
 
   // ─── SHARED ──────────────────────────────────────────────────────────────
+
+  // ─── KLASSEMENT (mini-KOM competition) ───────────────────────────────────
+
+  _fmtTime(s) {
+    if (s == null || isNaN(s)) return '—';
+    s = Math.round(s);
+    const m = Math.floor(s / 60), sec = s % 60;
+    return `${m}:${String(sec).padStart(2, '0')}`;
+  },
+
+  // Compute daily results + dual GC (time = yellow, points = green) from the
+  // configured stages and the standings data (backend-produced or sample).
+  _computeStandings() {
+    const comp = this.competition;
+    if (!comp) return null;
+    const nameOf = {};
+    (comp.riders || []).forEach(r => nameOf[r.id] = r.name);
+    const scale = comp.pointsScale || [10, 8, 6, 5, 4, 3, 2, 1];
+    const results = comp.standings?.stageResults || {};
+    const PENALTY = 300; // seconds added to the slowest time when a rider misses a stage
+
+    // Stages that actually have at least one time
+    const stages = (comp.stages || [])
+      .map(st => ({ ...st, entries: (results[st.dayIdx] || []).slice() }))
+      .filter(st => st.entries.length);
+
+    const perStage = stages.map(st => {
+      const sorted = st.entries
+        .filter(e => e.seconds != null)
+        .sort((a, b) => a.seconds - b.seconds);
+      const winner = sorted[0]?.seconds ?? null;
+      const slowest = sorted[sorted.length - 1]?.seconds ?? null;
+      const rows = sorted.map((e, i) => ({
+        riderId: e.riderId, name: nameOf[e.riderId] || e.riderId,
+        seconds: e.seconds, date: e.date,
+        rank: i + 1, points: scale[i] || 0,
+        gap: winner != null ? e.seconds - winner : 0
+      }));
+      return { dayIdx: st.dayIdx, label: st.label, segmentId: st.segmentId, slowest, rows };
+    });
+
+    // Riders that have ridden at least one counted stage
+    const active = new Set();
+    perStage.forEach(s => s.rows.forEach(r => active.add(r.riderId)));
+
+    // Time GC — sum of best times, penalty for missed counted stages
+    const timeGC = [...active].map(id => {
+      let total = 0, done = 0;
+      perStage.forEach(s => {
+        const row = s.rows.find(r => r.riderId === id);
+        if (row) { total += row.seconds; done++; }
+        else total += (s.slowest || 0) + PENALTY;
+      });
+      return { riderId: id, name: nameOf[id] || id, total, stagesDone: done };
+    }).sort((a, b) => b.stagesDone - a.stagesDone || a.total - b.total);
+    const tLeader = timeGC[0]?.total ?? 0;
+    timeGC.forEach((r, i) => { r.rank = i + 1; r.gap = r.total - tLeader; });
+
+    // Points GC — sum of stage points
+    const pointsGC = [...active].map(id => {
+      let pts = 0, done = 0;
+      perStage.forEach(s => { const row = s.rows.find(r => r.riderId === id); if (row) { pts += row.points; done++; } });
+      return { riderId: id, name: nameOf[id] || id, points: pts, stagesDone: done };
+    }).sort((a, b) => b.points - a.points);
+    pointsGC.forEach((r, i) => r.rank = i + 1);
+
+    return { sample: !!comp.standings?.sample, updatedAt: comp.standings?.updatedAt, perStage, timeGC, pointsGC, nStages: perStage.length };
+  },
+
+  _renderCompetition() {
+    this._showScreen('competition');
+    this._setupNav('Klassement', () => this._renderOverview());
+    const el = document.getElementById('competition-content');
+    const comp = this.competition;
+    const s = this._computeStandings();
+
+    if (!comp || !s || !s.nStages) {
+      el.innerHTML = `<div class="comp-empty">
+        <div class="comp-empty-icon">🏆</div>
+        <h2>Klassement</h2>
+        <p>Nog geen resultaten. Zodra de eerste tijden binnen zijn verschijnt hier het dag- en weekklassement.</p>
+      </div>`;
+      return;
+    }
+
+    const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : `${r}`;
+
+    const timeRows = s.timeGC.map(r => `
+      <tr class="${r.rank === 1 ? 'gc-leader' : ''}">
+        <td class="gc-pos">${medal(r.rank)}</td>
+        <td class="gc-name">${this._esc(r.name)}</td>
+        <td class="gc-val">${this._fmtTime(r.total)}</td>
+        <td class="gc-gap">${r.rank === 1 ? '' : '+' + this._fmtTime(r.gap)}</td>
+        <td class="gc-done">${r.stagesDone}/${s.nStages}</td>
+      </tr>`).join('');
+
+    const ptsRows = s.pointsGC.map(r => `
+      <tr class="${r.rank === 1 ? 'gc-leader green' : ''}">
+        <td class="gc-pos">${medal(r.rank)}</td>
+        <td class="gc-name">${this._esc(r.name)}</td>
+        <td class="gc-val">${r.points}</td>
+        <td class="gc-done">${r.stagesDone}/${s.nStages}</td>
+      </tr>`).join('');
+
+    const stageCards = s.perStage.map(st => {
+      const slot = this._slotFor(st.dayIdx);
+      const rows = st.rows.map(r => `
+        <div class="comp-stage-row${r.rank === 1 ? ' win' : ''}">
+          <span class="csr-pos">${medal(r.rank)}</span>
+          <span class="csr-name">${this._esc(r.name)}</span>
+          <span class="csr-time">${this._fmtTime(r.seconds)}</span>
+          <span class="csr-gap">${r.rank === 1 ? 'KOM' : '+' + this._fmtTime(r.gap)}</span>
+          <span class="csr-pts">${r.points}</span>
+        </div>`).join('');
+      const segLink = st.segmentId ? `<a href="https://www.strava.com/segments/${st.segmentId}" target="_blank" class="comp-seg-link">Strava ↗</a>` : '';
+      return `<div class="comp-stage">
+        <div class="comp-stage-head">
+          <span class="comp-stage-day">${this._esc(slot?.label || 'Dag')}</span>
+          <span class="comp-stage-seg">${this._esc(st.label)}</span>
+          ${segLink}
+        </div>
+        <div class="comp-stage-rows">${rows}</div>
+      </div>`;
+    }).join('');
+
+    const connectUrl = comp.connectUrl || null;
+    const connectBtn = connectUrl
+      ? `<a href="${connectUrl}" class="comp-connect">🔗 Koppel je Strava</a>`
+      : `<button class="comp-connect disabled" title="Beschikbaar zodra de Strava-koppeling live is" onclick="alert('De Strava-koppeling komt eraan. Zodra de backend live staat kun je hier je Strava verbinden en worden je tijden automatisch opgehaald.')">🔗 Koppel je Strava</button>`;
+
+    const updated = s.updatedAt ? `Bijgewerkt: ${new Date(s.updatedAt).toLocaleString('nl-NL')}` : 'Automatisch via Strava (nog niet gekoppeld)';
+
+    el.innerHTML = `
+      <div class="comp-header">
+        <div>
+          <h1>🏆 Klassement</h1>
+          <p class="comp-sub">Mini-KOM competitie · ${s.nStages} etappe(s) · ${updated}</p>
+        </div>
+        ${connectBtn}
+      </div>
+      ${s.sample ? '<div class="comp-sample">⚠️ Voorbeeldgegevens — echte tijden verschijnen zodra Strava gekoppeld is.</div>' : ''}
+
+      <div class="comp-gc-grid">
+        <div class="comp-gc yellow">
+          <div class="comp-gc-title"><span class="jersey y">🟡</span> Algemeen klassement <small>(tijd)</small></div>
+          <table class="comp-gc-table">
+            <thead><tr><th></th><th>Renner</th><th>Totaal</th><th>Achterstand</th><th>Etappes</th></tr></thead>
+            <tbody>${timeRows}</tbody>
+          </table>
+        </div>
+        <div class="comp-gc green">
+          <div class="comp-gc-title"><span class="jersey g">🟢</span> Puntenklassement <small>(KOM-punten)</small></div>
+          <table class="comp-gc-table">
+            <thead><tr><th></th><th>Renner</th><th>Punten</th><th>Etappes</th></tr></thead>
+            <tbody>${ptsRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <h2 class="comp-stages-title">Dagklassementen</h2>
+      <div class="comp-stages">${stageCards}</div>`;
+  },
 
   _showScreen(name) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));

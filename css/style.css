@@ -707,6 +707,62 @@ h3 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: upp
 .col-pill-cat.cat-3  { background: #ca8a04; }
 .col-pill-cat.cat-4  { background: #16a34a; }
 
+/* ── Klassement (mini-KOM competition) ──────────────────── */
+.competition { max-width: 1000px; margin: 0 auto; padding: 20px 16px 60px; }
+.comp-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.comp-header h1 { margin: 0; font-size: 1.6rem; }
+.comp-sub { margin: 4px 0 0; font-size: .8rem; color: var(--muted); }
+.comp-connect {
+  display: inline-block; background: #FC4C02; color: #fff; font-weight: 700;
+  border: none; border-radius: 10px; padding: 10px 16px; font-size: .85rem;
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+}
+.comp-connect.disabled { background: var(--bg3); color: var(--muted); cursor: pointer; }
+.comp-sample {
+  margin: 14px 0; padding: 8px 12px; border-radius: 8px; font-size: .78rem;
+  background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.4); color: #eab308;
+}
+
+.comp-gc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
+@media (max-width: 760px) { .comp-gc-grid { grid-template-columns: 1fr; } }
+.comp-gc { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.comp-gc.yellow { border-top: 3px solid #f5b301; }
+.comp-gc.green  { border-top: 3px solid #16a34a; }
+.comp-gc-title { padding: 12px 14px 6px; font-weight: 700; font-size: .95rem; display: flex; align-items: center; gap: 6px; }
+.comp-gc-title small { color: var(--muted); font-weight: 500; }
+.comp-gc-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.comp-gc-table th {
+  text-align: left; font-size: .66rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); font-weight: 600; padding: 4px 10px;
+}
+.comp-gc-table td { padding: 8px 10px; border-top: 1px solid var(--border); }
+.comp-gc-table tbody tr.gc-leader { background: rgba(245,179,1,0.10); }
+.comp-gc-table tbody tr.gc-leader.green { background: rgba(22,163,74,0.10); }
+.gc-pos { width: 34px; font-weight: 800; text-align: center; }
+.gc-name { font-weight: 600; }
+.gc-val { font-weight: 800; color: var(--orange); text-align: right; white-space: nowrap; }
+.gc-gap { color: var(--muted); text-align: right; white-space: nowrap; }
+.gc-done { color: var(--muted); text-align: center; white-space: nowrap; }
+
+.comp-stages-title { margin: 26px 0 12px; font-size: 1.1rem; }
+.comp-stages { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .comp-stages { grid-template-columns: 1fr; } }
+.comp-stage { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.comp-stage-head { display: flex; align-items: baseline; gap: 8px; padding: 10px 12px; background: rgba(255,255,255,0.02); }
+.comp-stage-day { font-weight: 800; font-size: .82rem; }
+.comp-stage-seg { color: var(--orange); font-weight: 600; font-size: .8rem; }
+.comp-seg-link { margin-left: auto; font-size: .7rem; color: var(--muted); text-decoration: none; }
+.comp-seg-link:hover { color: var(--orange); }
+.comp-stage-row { display: grid; grid-template-columns: 30px 1fr auto auto 26px; align-items: center; gap: 8px; padding: 7px 12px; font-size: .8rem; border-top: 1px solid var(--border); }
+.comp-stage-row.win { background: rgba(245,179,1,0.08); }
+.csr-pos { font-weight: 800; text-align: center; }
+.csr-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.csr-time { font-weight: 700; white-space: nowrap; }
+.csr-gap { color: var(--muted); font-size: .74rem; white-space: nowrap; text-align: right; }
+.csr-pts { color: var(--orange); font-weight: 800; text-align: right; }
+.comp-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.comp-empty-icon { font-size: 3rem; }
+
 /* ── MapLibre overrides ─────────────────────────────────── */
 .maplibregl-ctrl-group { background: var(--bg2) !important; border: 1px solid var(--border) !important; }
 .maplibregl-ctrl-group button { background-color: var(--bg2) !important; }

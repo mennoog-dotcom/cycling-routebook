@@ -13,6 +13,7 @@
     <button id="btn-back" class="nav-btn">← Terug</button>
     <span id="nav-title">Cycling Routebook</span>
     <div class="nav-right">
+      <button id="btn-competition" class="nav-btn" title="Klassement">🏆</button>
       <button id="btn-theme" class="nav-btn" title="Licht / donker">🌙</button>
       <button id="btn-home" class="nav-btn">⌂ Home</button>
     </div>
@@ -134,6 +135,11 @@
       </div>
     </div>
 
+    <!-- ── KLASSEMENT (mini-KOM competition) ─────────────────── -->
+    <div id="screen-competition" class="screen">
+      <div id="competition-content" class="competition"></div>
+    </div>
+
   </div>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -144,6 +150,7 @@
   <!-- Add a new trip here each year: -->
   <script src="trips/2025-annecy/trip.js"></script>
   <script src="trips/2025-annecy/gpx-bundle.js"></script>
+  <script src="trips/2025-annecy/competition.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
