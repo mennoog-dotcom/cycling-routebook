@@ -2017,8 +2017,9 @@ const App = {
     const PENALTY = 300; // seconds added to the slowest time when a rider misses a stage
 
     // Stages that actually have at least one time
+    const slotOf = st => (st.slot != null ? st.slot : st.dayIdx);
     const stages = (comp.stages || [])
-      .map(st => ({ ...st, entries: (results[st.dayIdx] || []).slice() }))
+      .map(st => ({ ...st, slot: slotOf(st), entries: (results[slotOf(st)] || []).slice() }))
       .filter(st => st.entries.length);
 
     const perStage = stages.map(st => {
@@ -2033,7 +2034,8 @@ const App = {
         rank: i + 1, points: scale[i] || 0,
         gap: winner != null ? e.seconds - winner : 0
       }));
-      return { dayIdx: st.dayIdx, label: st.label, segmentId: st.segmentId, slowest, rows };
+      const segIds = [...new Set([st.segLong, st.segShort, st.segmentId].filter(Boolean))];
+      return { slot: st.slot, label: st.label, date: st.date, segIds, slowest, rows };
     });
 
     // Riders that have ridden at least one counted stage
@@ -2100,7 +2102,7 @@ const App = {
       </tr>`).join('');
 
     const stageCards = s.perStage.map(st => {
-      const slot = this._slotFor(st.dayIdx);
+      const dayLabel = this.trip.days[st.slot]?.label || 'Dag';
       const rows = st.rows.map(r => `
         <div class="comp-stage-row${r.rank === 1 ? ' win' : ''}">
           <span class="csr-pos">${medal(r.rank)}</span>
@@ -2109,10 +2111,11 @@ const App = {
           <span class="csr-gap">${r.rank === 1 ? 'KOM' : '+' + this._fmtTime(r.gap)}</span>
           <span class="csr-pts">${r.points}</span>
         </div>`).join('');
-      const segLink = st.segmentId ? `<a href="https://www.strava.com/segments/${st.segmentId}" target="_blank" class="comp-seg-link">Strava ↗</a>` : '';
+      const segLink = (st.segIds || []).length
+        ? `<a href="https://www.strava.com/segments/${st.segIds[0]}" target="_blank" class="comp-seg-link">segment ↗</a>` : '';
       return `<div class="comp-stage">
         <div class="comp-stage-head">
-          <span class="comp-stage-day">${this._esc(slot?.label || 'Dag')}</span>
+          <span class="comp-stage-day">${this._esc(dayLabel)}</span>
           <span class="comp-stage-seg">${this._esc(st.label)}</span>
           ${segLink}
         </div>
