@@ -1,0 +1,16 @@
+{
+  "name": "kom-sync",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "login": "wrangler login",
+    "kv": "wrangler kv namespace create KOM",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "secret": "wrangler secret put STRAVA_CLIENT_SECRET"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}
