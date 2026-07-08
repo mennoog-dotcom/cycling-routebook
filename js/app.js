@@ -2003,8 +2003,9 @@ const App = {
     return `${m}:${String(sec).padStart(2, '0')}`;
   },
 
-  // Compute daily results + dual GC (time = yellow, points = green) from the
-  // configured stages and the standings data (backend-produced or sample).
+  // Compute daily boards (long/short, merged when the segment is the same) plus
+  // a Long and a Short overall GC. Each GC is ranked by cumulative time with a
+  // points column; a missed stage adds the slowest time + a penalty.
   _computeStandings() {
     const comp = this.competition;
     if (!comp) return null;
@@ -2013,55 +2014,60 @@ const App = {
     const scale = comp.pointsScale || [10, 8, 6, 5, 4, 3, 2, 1];
     const results = comp.standings?.stageResults || {};
     const PENALTY = 300; // seconds added to the slowest time when a rider misses a stage
-
-    // Stages that actually have at least one time
     const slotOf = st => (st.slot != null ? st.slot : st.dayIdx);
-    const stages = (comp.stages || [])
-      .map(st => ({ ...st, slot: slotOf(st), entries: (results[slotOf(st)] || []).slice() }))
-      .filter(st => st.entries.length);
 
-    const perStage = stages.map(st => {
-      const sorted = st.entries
+    // Backwards-compat: older data used { seconds }. Treat it as both long+short.
+    const timeOf = (e, field) => (e[field] != null ? e[field] : (e.seconds != null ? e.seconds : null));
+
+    // Rank the entries of one stage by a field ('long' | 'short').
+    const board = (entries, field) => {
+      const sorted = entries
+        .map(e => ({ riderId: e.riderId, name: nameOf[e.riderId] || e.riderId, seconds: timeOf(e, field) }))
         .filter(e => e.seconds != null)
         .sort((a, b) => a.seconds - b.seconds);
       const winner = sorted[0]?.seconds ?? null;
       const slowest = sorted[sorted.length - 1]?.seconds ?? null;
-      const rows = sorted.map((e, i) => ({
-        riderId: e.riderId, name: nameOf[e.riderId] || e.riderId,
-        seconds: e.seconds, date: e.date,
-        rank: i + 1, points: scale[i] || 0,
-        gap: winner != null ? e.seconds - winner : 0
-      }));
-      const segIds = [...new Set([st.segLong, st.segShort, st.segmentId].filter(Boolean))];
-      return { slot: st.slot, label: st.label, date: st.date, segIds, slowest, rows };
-    });
+      const rows = sorted.map((e, i) => ({ ...e, rank: i + 1, points: scale[i] || 0, gap: winner != null ? e.seconds - winner : 0 }));
+      return { rows, slowest };
+    };
 
-    // Riders that have ridden at least one counted stage
-    const active = new Set();
-    perStage.forEach(s => s.rows.forEach(r => active.add(r.riderId)));
+    const stages = (comp.stages || [])
+      .map(st => ({ ...st, slot: slotOf(st), entries: (results[slotOf(st)] || []).slice() }))
+      .map(st => ({
+        slot: st.slot, date: st.date,
+        merged: st.segLong != null && st.segLong === st.segShort,
+        labelLong: st.label, labelShort: st.labelShort || 'Korte route',
+        segLong: st.segLong, segShort: st.segShort,
+        long: board(st.entries, 'long'),
+        short: board(st.entries, 'short')
+      }))
+      .filter(st => st.long.rows.length || st.short.rows.length);
 
-    // Time GC — sum of best times, penalty for missed counted stages
-    const timeGC = [...active].map(id => {
-      let total = 0, done = 0;
-      perStage.forEach(s => {
-        const row = s.rows.find(r => r.riderId === id);
-        if (row) { total += row.seconds; done++; }
-        else total += (s.slowest || 0) + PENALTY;
-      });
-      return { riderId: id, name: nameOf[id] || id, total, stagesDone: done };
-    }).sort((a, b) => b.stagesDone - a.stagesDone || a.total - b.total);
-    const tLeader = timeGC[0]?.total ?? 0;
-    timeGC.forEach((r, i) => { r.rank = i + 1; r.gap = r.total - tLeader; });
+    // Build an overall GC for one route type ('long' | 'short').
+    const buildGC = field => {
+      const relevant = stages.filter(s => s[field].rows.length);
+      const active = new Set();
+      relevant.forEach(s => s[field].rows.forEach(r => active.add(r.riderId)));
+      const gc = [...active].map(id => {
+        let total = 0, done = 0, points = 0;
+        relevant.forEach(s => {
+          const row = s[field].rows.find(r => r.riderId === id);
+          if (row) { total += row.seconds; done++; points += row.points; }
+          else total += (s[field].slowest || 0) + PENALTY;
+        });
+        return { riderId: id, name: nameOf[id] || id, total, stagesDone: done, points };
+      }).sort((a, b) => b.stagesDone - a.stagesDone || a.total - b.total);
+      const leader = gc[0]?.total ?? 0;
+      const ptsLeaderId = gc.slice().sort((a, b) => b.points - a.points)[0]?.riderId;
+      gc.forEach((r, i) => { r.rank = i + 1; r.gap = r.total - leader; r.ptsLeader = r.riderId === ptsLeaderId; });
+      return { gc, nStages: relevant.length };
+    };
 
-    // Points GC — sum of stage points
-    const pointsGC = [...active].map(id => {
-      let pts = 0, done = 0;
-      perStage.forEach(s => { const row = s.rows.find(r => r.riderId === id); if (row) { pts += row.points; done++; } });
-      return { riderId: id, name: nameOf[id] || id, points: pts, stagesDone: done };
-    }).sort((a, b) => b.points - a.points);
-    pointsGC.forEach((r, i) => r.rank = i + 1);
-
-    return { sample: !!comp.standings?.sample, updatedAt: comp.standings?.updatedAt, perStage, timeGC, pointsGC, nStages: perStage.length };
+    return {
+      sample: !!comp.standings?.sample, updatedAt: comp.standings?.updatedAt,
+      stages, longGC: buildGC('long'), shortGC: buildGC('short'),
+      nStages: stages.length
+    };
   },
 
   _renderCompetition() {
@@ -2097,49 +2103,68 @@ const App = {
 
     const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : `${r}`;
 
-    const timeRows = s.timeGC.map(r => `
-      <tr class="${r.rank === 1 ? 'gc-leader' : ''}">
-        <td class="gc-pos">${medal(r.rank)}</td>
-        <td class="gc-name">${this._esc(r.name)}</td>
-        <td class="gc-val">${this._fmtTime(r.total)}</td>
-        <td class="gc-gap">${r.rank === 1 ? '' : '+' + this._fmtTime(r.gap)}</td>
-        <td class="gc-done">${r.stagesDone}/${s.nStages}</td>
-      </tr>`).join('');
+    // One overall GC table (ranked by time, points shown alongside)
+    const gcTable = (data, cls, jersey, title) => {
+      if (!data.gc.length) return `<div class="comp-gc ${cls}">
+        <div class="comp-gc-title">${jersey} ${title}</div>
+        <div class="ranking-empty">Nog geen tijden.</div></div>`;
+      const rows = data.gc.map(r => `
+        <tr class="${r.rank === 1 ? 'gc-leader' : ''}">
+          <td class="gc-pos">${medal(r.rank)}</td>
+          <td class="gc-name">${this._esc(r.name)}</td>
+          <td class="gc-val">${this._fmtTime(r.total)}</td>
+          <td class="gc-gap">${r.rank === 1 ? '' : '+' + this._fmtTime(r.gap)}</td>
+          <td class="gc-pts${r.ptsLeader ? ' pts-leader' : ''}">${r.points}</td>
+          <td class="gc-done">${r.stagesDone}/${data.nStages}</td>
+        </tr>`).join('');
+      return `<div class="comp-gc ${cls}">
+        <div class="comp-gc-title">${jersey} ${title}</div>
+        <table class="comp-gc-table">
+          <thead><tr><th></th><th>Renner</th><th>Totaaltijd</th><th>Achterst.</th><th>Ptn</th><th>Etp.</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`;
+    };
 
-    const ptsRows = s.pointsGC.map(r => `
-      <tr class="${r.rank === 1 ? 'gc-leader green' : ''}">
-        <td class="gc-pos">${medal(r.rank)}</td>
-        <td class="gc-name">${this._esc(r.name)}</td>
-        <td class="gc-val">${r.points}</td>
-        <td class="gc-done">${r.stagesDone}/${s.nStages}</td>
-      </tr>`).join('');
+    // One daily board (rank/time/gap/points)
+    const boardRows = b => b.rows.map(r => `
+      <div class="comp-stage-row${r.rank === 1 ? ' win' : ''}">
+        <span class="csr-pos">${medal(r.rank)}</span>
+        <span class="csr-name">${this._esc(r.name)}</span>
+        <span class="csr-time">${this._fmtTime(r.seconds)}</span>
+        <span class="csr-gap">${r.rank === 1 ? 'KOM' : '+' + this._fmtTime(r.gap)}</span>
+        <span class="csr-pts">${r.points}</span>
+      </div>`).join('');
+    const segLink = id => id ? `<a href="https://www.strava.com/segments/${id}" target="_blank" class="comp-seg-link">segment ↗</a>` : '';
 
-    const stageCards = s.perStage.map(st => {
+    const stageCards = s.stages.map(st => {
       const dayLabel = this.trip.days[st.slot]?.label || 'Dag';
-      const rows = st.rows.map(r => `
-        <div class="comp-stage-row${r.rank === 1 ? ' win' : ''}">
-          <span class="csr-pos">${medal(r.rank)}</span>
-          <span class="csr-name">${this._esc(r.name)}</span>
-          <span class="csr-time">${this._fmtTime(r.seconds)}</span>
-          <span class="csr-gap">${r.rank === 1 ? 'KOM' : '+' + this._fmtTime(r.gap)}</span>
-          <span class="csr-pts">${r.points}</span>
-        </div>`).join('');
-      const segLink = (st.segIds || []).length
-        ? `<a href="https://www.strava.com/segments/${st.segIds[0]}" target="_blank" class="comp-seg-link">segment ↗</a>` : '';
-      return `<div class="comp-stage">
+      if (st.merged) {
+        return `<div class="comp-stage">
+          <div class="comp-stage-head">
+            <span class="comp-stage-day">${this._esc(dayLabel)}</span>
+            <span class="comp-stage-seg">${this._esc(st.labelLong)}</span>
+            ${segLink(st.segLong)}
+          </div>
+          <div class="comp-stage-rows">${boardRows(st.long)}</div>
+        </div>`;
+      }
+      // Split day: separate Lang and Kort boards
+      const sub = (b, tag, label, seg) => `<div class="comp-stage split">
         <div class="comp-stage-head">
           <span class="comp-stage-day">${this._esc(dayLabel)}</span>
-          <span class="comp-stage-seg">${this._esc(st.label)}</span>
-          ${segLink}
+          <span class="comp-route-tag ${tag === 'Lang' ? 'long' : 'short'}">${tag}</span>
+          <span class="comp-stage-seg">${this._esc(label)}</span>
+          ${segLink(seg)}
         </div>
-        <div class="comp-stage-rows">${rows}</div>
+        <div class="comp-stage-rows">${b.rows.length ? boardRows(b) : '<div class="ranking-empty">Nog geen tijden.</div>'}</div>
       </div>`;
+      return sub(st.long, 'Lang', st.labelLong, st.segLong) + sub(st.short, 'Kort', st.labelShort, st.segShort);
     }).join('');
 
     const connectUrl = comp.backendUrl ? `${comp.backendUrl}/auth/start` : (comp.connectUrl || null);
     const connectBtn = connectUrl
       ? `<a href="${connectUrl}" class="comp-connect">🔗 Koppel je Strava</a>`
-      : `<button class="comp-connect disabled" title="Beschikbaar zodra de Strava-koppeling live is" onclick="alert('De Strava-koppeling komt eraan. Zodra de backend live staat kun je hier je Strava verbinden en worden je tijden automatisch opgehaald.')">🔗 Koppel je Strava</button>`;
+      : `<button class="comp-connect disabled" title="Beschikbaar zodra de Strava-koppeling live is" onclick="alert('De Strava-koppeling komt eraan.')">🔗 Koppel je Strava</button>`;
 
     const updated = s.updatedAt ? `Bijgewerkt: ${new Date(s.updatedAt).toLocaleString('nl-NL')}` : 'Automatisch via Strava (nog niet gekoppeld)';
 
@@ -2153,21 +2178,11 @@ const App = {
       </div>
       ${s.sample ? '<div class="comp-sample">⚠️ Voorbeeldgegevens — echte tijden verschijnen zodra Strava gekoppeld is.</div>' : ''}
 
+      <h2 class="comp-stages-title">Eindklassement</h2>
+      <p class="comp-note">Op tijd (🥇 = snelst); punten (Ptn) tellen de dagpodia. Gemiste etappe = traagste tijd + straf.</p>
       <div class="comp-gc-grid">
-        <div class="comp-gc yellow">
-          <div class="comp-gc-title"><span class="jersey y">🟡</span> Algemeen klassement <small>(tijd)</small></div>
-          <table class="comp-gc-table">
-            <thead><tr><th></th><th>Renner</th><th>Totaal</th><th>Achterstand</th><th>Etappes</th></tr></thead>
-            <tbody>${timeRows}</tbody>
-          </table>
-        </div>
-        <div class="comp-gc green">
-          <div class="comp-gc-title"><span class="jersey g">🟢</span> Puntenklassement <small>(KOM-punten)</small></div>
-          <table class="comp-gc-table">
-            <thead><tr><th></th><th>Renner</th><th>Punten</th><th>Etappes</th></tr></thead>
-            <tbody>${ptsRows}</tbody>
-          </table>
-        </div>
+        ${gcTable(s.longGC, 'long', '🚴', 'Lange route')}
+        ${gcTable(s.shortGC, 'short', '🚵', 'Korte route')}
       </div>
 
       <h2 class="comp-stages-title">Dagklassementen</h2>

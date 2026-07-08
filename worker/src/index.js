@@ -94,7 +94,7 @@ async function standings(request, env) {
 // ── Sync ───────────────────────────────────────────────────────────────────
 async function syncAll(env) {
   const list = await env.KOM.list({ prefix: 'rider:' });
-  const best = {}; // slot -> athleteId -> seconds
+  const best = {}; // slot -> athleteId -> { long, short }
 
   const after = Math.floor(Date.parse(CONFIG.tripStart + 'T00:00:00Z') / 1000) - 86400;
   const before = Math.floor(Date.parse(CONFIG.tripEnd + 'T23:59:59Z') / 1000) + 86400;
@@ -110,22 +110,29 @@ async function syncAll(env) {
         const date = String(a.start_date_local || a.start_date || '').slice(0, 10);
         const stage = CONFIG.stages.find(s => s.date === date);
         if (!stage) continue;
-        const segIds = [stage.segLong, stage.segShort].filter(Boolean);
         const detail = await getJson(`${API}/activities/${a.id}?include_all_efforts=true`, token);
-        const efforts = (detail.segment_efforts || []).filter(e => segIds.includes(e.segment?.id));
-        if (!efforts.length) continue;
-        const t = Math.min(...efforts.map(e => e.elapsed_time));
+        const efforts = detail.segment_efforts || [];
+        // Best elapsed time on the long-route and short-route segments separately.
+        const bestOn = segId => {
+          const t = efforts.filter(e => e.segment?.id === segId).map(e => e.elapsed_time);
+          return t.length ? Math.min(...t) : null;
+        };
+        const longT = bestOn(stage.segLong);
+        const shortT = bestOn(stage.segShort);
+        if (longT == null && shortT == null) continue;
         const slot = String(stage.slot);
         best[slot] = best[slot] || {};
-        if (best[slot][rider.athleteId] == null || t < best[slot][rider.athleteId])
-          best[slot][rider.athleteId] = t;
+        const cur = best[slot][rider.athleteId] || { long: null, short: null };
+        if (longT != null && (cur.long == null || longT < cur.long)) cur.long = longT;
+        if (shortT != null && (cur.short == null || shortT < cur.short)) cur.short = shortT;
+        best[slot][rider.athleteId] = cur;
       }
     } catch (e) { /* skip this rider on any error, keep going */ }
   }
 
   const out = { sample: false, updatedAt: new Date().toISOString(), stageResults: {} };
   for (const slot in best)
-    out.stageResults[slot] = Object.entries(best[slot]).map(([riderId, seconds]) => ({ riderId, seconds }));
+    out.stageResults[slot] = Object.entries(best[slot]).map(([riderId, v]) => ({ riderId, long: v.long, short: v.short }));
   await env.KOM.put('standings', JSON.stringify(out));
   return out;
 }
