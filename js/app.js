@@ -2073,7 +2073,12 @@ const App = {
       fetch(`${this.competition.backendUrl}/standings`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data && data.stageResults) { this.competition.standings = data; this._renderCompetition(); }
+          // Only switch to live data once there are real results; until then
+          // keep the sample so the tab isn't empty during setup / pre-trip.
+          if (data && data.stageResults && Object.keys(data.stageResults).length) {
+            this.competition.standings = data;
+            this._renderCompetition();
+          }
         })
         .catch(() => {});
     }

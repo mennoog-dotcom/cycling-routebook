@@ -18,7 +18,7 @@ window.COMPETITION_2026 = {
   // Set to the deployed Cloudflare Worker URL to go live (see worker/README.md).
   // When set: the tab fetches <backendUrl>/standings and the Connect button
   // links to <backendUrl>/auth/start. null = use the sample standings below.
-  backendUrl: null,
+  backendUrl: "https://kom-sync.mennoog.workers.dev",
 
   // slot = index into the (calendar-ordered) week. Di (slot 3) is the rest day.
   stages: [

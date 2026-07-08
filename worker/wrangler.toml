@@ -11,7 +11,7 @@ compatibility_date = "2024-11-01"
 # then paste the returned id below.
 [[kv_namespaces]]
 binding = "KOM"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "5dc154575e204f03b89dbb5e238fee10"
 
 # Pull fresh times automatically. Every 30 min is plenty; Strava's rate limit
 # is 200 req / 15 min. Adjust or remove outside the trip week.
@@ -24,7 +24,7 @@ STRAVA_CLIENT_ID = "32156"
 # The Worker's own callback URL. After the first `wrangler deploy` you'll get a
 # https://kom-sync.<your-subdomain>.workers.dev URL — put it here (+ /auth/callback)
 # and set the same domain as the Strava app's "Authorization Callback Domain".
-REDIRECT_URI = "https://kom-sync.REPLACE.workers.dev/auth/callback"
+REDIRECT_URI = "https://kom-sync.mennoog.workers.dev/auth/callback"
 # Your GitHub Pages origin, for CORS on /standings.
 ALLOW_ORIGIN = "https://mennoog-dotcom.github.io"
 
