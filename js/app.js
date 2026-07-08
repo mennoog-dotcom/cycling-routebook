@@ -2207,6 +2207,10 @@ const App = {
           <h1>🏆 Klassement</h1>
           <p class="comp-sub">Mini-KOM competitie · ${s.nStages} etappe(s) · ${updated}</p>
         </div>
+      </div>
+
+      <div class="comp-connect-bar">
+        <span class="comp-connect-txt">Koppel eenmalig je Strava zodat je tijden automatisch meetellen.</span>
         ${connectBtn}
       </div>
       ${s.sample ? '<div class="comp-sample">⚠️ Voorbeeldgegevens — echte tijden verschijnen zodra Strava gekoppeld is.</div>' : ''}

@@ -708,7 +708,7 @@ h3 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: upp
 .col-pill-cat.cat-4  { background: #16a34a; }
 
 /* ── Klassement (mini-KOM competition) ──────────────────── */
-.competition { max-width: 1000px; margin: 0 auto; padding: 20px 16px 60px; }
+.competition { max-width: 1000px; margin: 0 auto; padding: calc(var(--nav-h) + 20px) 16px 60px; }
 .comp-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .comp-header h1 { margin: 0; font-size: 1.6rem; }
 .comp-sub { margin: 4px 0 0; font-size: .8rem; color: var(--muted); }
@@ -718,6 +718,13 @@ h3 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: upp
   cursor: pointer; text-decoration: none; white-space: nowrap;
 }
 .comp-connect.disabled { background: var(--bg3); color: var(--muted); cursor: pointer; }
+.comp-connect-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; margin: 14px 0 4px; padding: 12px 16px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.comp-connect-txt { font-size: .82rem; color: var(--muted); }
+.comp-connect-bar .comp-connect { font-size: .9rem; padding: 11px 20px; }
 .comp-sample {
   margin: 14px 0; padding: 8px 12px; border-radius: 8px; font-size: .78rem;
   background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.4); color: #eab308;
