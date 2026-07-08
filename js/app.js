@@ -284,7 +284,8 @@ const App = {
       <div class="stat-pill">🚴 ${riding.length} ritdagen</div>
       <div class="stat-pill">📏 ${Math.round(totalKm)} km</div>
       <div class="stat-pill">⛰️ ${totalHm.toLocaleString()} hm</div>
-      <div class="stat-pill">📍 ${this.trip.basecamp}</div>`;
+      <div class="stat-pill">📍 ${this.trip.basecamp}</div>
+      ${this.competition ? `<button class="stat-kom-btn" onclick="App._renderCompetition()">🏆 KOM-klassement →</button>` : ''}`;
 
     this.overviewRouteType = 'long';
 
@@ -329,7 +330,7 @@ const App = {
       const L = day.longRoute, S = day.shortRoute;
       const dotColor = MapView.DAY_COLORS[contentIdx] || '#FC4C02';
       const dragAttrs = ed ? `draggable="true" data-pos="${pos}"` : '';
-      const click = hasRide ? `onclick="App.openDay(${contentIdx})"` : '';
+      const click = hasRide ? `onclick="App.openDay(${contentIdx}, '${rt}')"` : '';
       // Toughness for the toggled route type, falling back to the day's other route
       const starRt = (rt === 'short' ? S : L) ? rt : (L ? 'long' : 'short');
       const stars = hasRide ? this._toughnessStars(contentIdx, starRt) : 0;
@@ -781,7 +782,7 @@ const App = {
 
     const notes = [];
     if (desc) notes.push(`📖 ${this._esc(desc)}`);
-    if (seg) notes.push(`⏱ Getimed: ${this._esc(seg.name)}${seg.km != null ? ' · ' + seg.km + ' km' : ''}${seg.gradient != null ? ' · ' + seg.gradient + '%' : ''}`);
+    if (seg) notes.push(`⏱ Getimed: ${this._esc(seg.name)}${seg.km != null ? ' · ' + this._fmt1(seg.km) + ' km' : ''}${seg.gradient != null ? ' · ' + this._fmt1(seg.gradient) + '%' : ''}`);
     if (coffee && (coffee.text || coffee.mapsUrl)) notes.push(`☕ Koffie/lunch: ${this._esc(coffee.text || '')}`);
     if (day.alternative) notes.push(`🔀 ${this._esc(day.alternative)}`);
 
@@ -1016,7 +1017,9 @@ const App = {
     if (s != null) return s;
     const baked = this._bakedStage();
     if (baked && baked.description != null) return baked.description;
-    return this.trip.days[this.currentDayIdx]?.description || '';
+    // Default: the day description, with the old comments folded in (one box).
+    const day = this.trip.days[this.currentDayIdx];
+    return [day?.description, day?.comments].filter(Boolean).join('\n\n');
   },
   _saveStageDesc() {
     const v = document.getElementById('stage-desc-input')?.value ?? '';
@@ -1052,8 +1055,8 @@ const App = {
       const existing = this._getTimedSegment() || {};
       const seg = {
         name: name || existing.name || 'Getimed segment',
-        km: isNaN(km) ? (existing.km ?? null) : km,
-        gradient: isNaN(grad) ? (existing.gradient ?? null) : grad,
+        km: isNaN(km) ? (existing.km ?? null) : Math.round(km * 10) / 10,
+        gradient: isNaN(grad) ? (existing.gradient ?? null) : Math.round(grad * 10) / 10,
         stravaUrl: url || null
       };
       if (existing.startDistKm != null) seg.startDistKm = existing.startDistKm;
@@ -1099,9 +1102,11 @@ const App = {
         </div>
       </div>`;
     } else if (seg) {
+      const komLink = this.competition
+        ? `<a class="seg-link kom-link" onclick="App._renderCompetition()">🏆 Klassement →</a>` : '';
       html += `<div class="notes-box timed-seg"><span class="notes-icon">⏱</span>
-        <span><strong>Getimed segment:</strong> ${this._esc(seg.name)}${seg.km != null ? ' · ' + seg.km + ' km' : ''}${seg.gradient != null ? ' · ' + seg.gradient + '%' : ''}
-        ${seg.stravaUrl ? `<a href="${this._esc(seg.stravaUrl)}" target="_blank" class="seg-link">Strava ↗</a>` : ''}</span></div>`;
+        <span><strong>Getimed segment:</strong> ${this._esc(seg.name)}${seg.km != null ? ' · ' + this._fmt1(seg.km) + ' km' : ''}${seg.gradient != null ? ' · ' + this._fmt1(seg.gradient) + '%' : ''}
+        ${seg.stravaUrl ? `<a href="${this._esc(seg.stravaUrl)}" target="_blank" class="seg-link">Strava ↗</a>` : ''}${komLink}</span></div>`;
     }
 
     // Koffie / lunch
@@ -1121,11 +1126,10 @@ const App = {
         ${coffee.mapsUrl ? `<a href="${this._esc(coffee.mapsUrl)}" target="_blank" class="seg-link">Google Maps ↗</a>` : ''}</span></div>`;
     }
 
-    // Alternatief & opmerkingen (read-only uit trip.js, voor iedereen)
+    // Alternatief (read-only uit trip.js, voor iedereen). Comments zijn nu
+    // samengevoegd met de beschrijving — zie _loadStageDesc.
     if (day.alternative)
       html += `<div class="notes-box"><span class="notes-icon">🔀</span><span><strong>Alternatief:</strong> ${this._esc(day.alternative)}</span></div>`;
-    if (day.comments)
-      html += `<div class="notes-box"><span class="notes-icon">📝</span><span>${this._esc(day.comments)}</span></div>`;
 
     document.getElementById('day-notes').innerHTML = html;
   },
@@ -1726,8 +1730,8 @@ const App = {
     const komData = {
       name: c.colName || `Klim ${idx + 1}`,
       startDistKm: c.startDistKm,
-      km: c.lengthKm,
-      gradient: c.avgGrad,
+      km: Math.round(c.lengthKm * 10) / 10,
+      gradient: Math.round(c.avgGrad * 10) / 10,
       stravaUrl: null
     };
     localStorage.setItem(komKey, JSON.stringify(komData));
@@ -1742,6 +1746,25 @@ const App = {
 
     // Visual feedback
     alert(`${komData.name} geselecteerd als KOM segment!`);
+  },
+
+  // Round to 1 decimal for display; '' for null/NaN.
+  _fmt1(n) { return (n == null || isNaN(n)) ? '' : (Math.round(n * 10) / 10); },
+
+  // Extract the numeric Strava segment id from a segment URL.
+  _segmentIdFromUrl(url) {
+    const m = String(url || '').match(/segments\/(\d+)/);
+    return m ? +m[1] : null;
+  },
+
+  // The KOM competition segment for a given day+route is taken straight from
+  // that stage's timed-segment Strava link (localStorage override → baked).
+  // Returns null when the timed segment has no Strava link (caller falls back
+  // to the competition config). This is what links "getimed segment" ↔ KOM.
+  _komSegmentId(dayIdx, rt) {
+    const saved = localStorage.getItem(`kom-${this.trip.year}-${dayIdx}-${rt}`);
+    if (saved) { try { const id = this._segmentIdFromUrl(JSON.parse(saved)?.stravaUrl); if (id) return id; } catch (e) {} }
+    return this._segmentIdFromUrl(this.trip.bakedStage?.[`${dayIdx}-${rt}`]?.timedSegment?.stravaUrl);
   },
 
   _getTimedSegment() {
@@ -2031,16 +2054,26 @@ const App = {
       return { rows, slowest };
     };
 
+    // Map each calendar slot to the ride content sitting there (day-order aware),
+    // then take the KOM segment straight from that stage's timed segment when set,
+    // falling back to the competition config. Keeps KOM linked to the route/timed
+    // segment even when the planned route for a day changes.
+    const order = this._dayOrder ? this._dayOrder() : [];
     const stages = (comp.stages || [])
       .map(st => ({ ...st, slot: slotOf(st), entries: (results[slotOf(st)] || []).slice() }))
-      .map(st => ({
-        slot: st.slot, date: st.date,
-        merged: st.segLong != null && st.segLong === st.segShort,
-        labelLong: st.label, labelShort: st.labelShort || 'Korte route',
-        segLong: st.segLong, segShort: st.segShort,
-        long: board(st.entries, 'long'),
-        short: board(st.entries, 'short')
-      }))
+      .map(st => {
+        const contentDay = order[st.slot];
+        const segLong = (contentDay != null && this._komSegmentId(contentDay, 'long')) || st.segLong;
+        const segShort = (contentDay != null && this._komSegmentId(contentDay, 'short')) || st.segShort;
+        return {
+          slot: st.slot, date: st.date,
+          merged: segLong != null && segLong === segShort,
+          labelLong: st.label, labelShort: st.labelShort || 'Korte route',
+          segLong, segShort,
+          long: board(st.entries, 'long'),
+          short: board(st.entries, 'short')
+        };
+      })
       .filter(st => st.long.rows.length || st.short.rows.length);
 
     // Build an overall GC for one route type ('long' | 'short').

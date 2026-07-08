@@ -739,6 +739,20 @@ td.gc-pts.pts-leader { color: #16a34a; }
 }
 .comp-route-tag.long { background: #FC4C02; }
 .comp-route-tag.short { background: #3b82f6; }
+
+/* Prominent KOM button next to the week stats */
+.stat-kom-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: linear-gradient(135deg, #FC4C02, #eab308); color: #fff;
+  border: none; border-radius: 20px; padding: 7px 14px;
+  font-size: .8rem; font-weight: 800; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(252,76,2,0.35);
+}
+.stat-kom-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+/* "Klassement →" link inside the timed-segment box (visitor view) */
+.seg-link.kom-link { cursor: pointer; color: #eab308; margin-left: 8px; }
+.seg-link.kom-link:hover { text-decoration: underline; }
 .comp-gc-title { padding: 12px 14px 6px; font-weight: 700; font-size: .95rem; display: flex; align-items: center; gap: 6px; }
 .comp-gc-title small { color: var(--muted); font-weight: 500; }
 .comp-gc-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
